@@ -14,7 +14,7 @@ import subprocess
 import platform
 import socket
 import threading
-from PIL import Image, ImageTk  # You may need to install: pip install Pillow
+from PIL import Image, ImageTk
 
 # ============================================================================
 # CONFIGURATION
@@ -27,11 +27,9 @@ EMAIL_PASSWORD = "hirl quyv gdzs dewd"
 LIBRARY_NAME = "MELCHORA AQUINO HIGH SCHOOL LIBRARY"
 BORROWING_DAYS = 3
 
-# Admin credentials
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "library123"
 
-# WiFi Configuration
 WIFI_SSID = "Library_WiFi"
 WIFI_PASSWORD = "library123"
 
@@ -1476,4 +1474,5 @@ Students with Active Borrowings: {len(set(b['student_id'] for b in self.database
 if __name__ == "__main__":
     root = tk.Tk()
     app = LibrarySoftware(root)
+
     root.mainloop()
