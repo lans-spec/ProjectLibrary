@@ -17,7 +17,6 @@ LIBRARY_NAME = "MELCHORA AQUINO HIGH SCHOOL LIBRARY"
 LIBRARIAN_EMAIL = "lanze.anderson@gmail.com"
 BORROWING_DAYS = 3
 
-# Admin credentials
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "library123"
 
@@ -179,33 +178,49 @@ class ExcelLibraryDatabase:
     
     def get_active_borrowings(self, student_id=None):
         """Get all active borrowings from TRANSACTION LOG"""
-        records = []
         rows = list(self.trans_sheet.iter_rows(min_row=2, values_only=True))
-        
+    
         borrows = []
         for row in rows:
             if len(row) >= 9 and row[8] == 'borrow':
                 borrows.append({
                     'trans_id': row[0],
-                    'lrn': row[1],
+                    'lrn': str(row[1]).strip(),
                     'student_name': row[2],
                     'grade_section': row[3],
                     'email': row[4],
-                    'book_barcode': row[5],
+                    'book_barcode': str(row[5]).strip(),
                     'book_title': row[6],
                     'author': row[7],
                     'timestamp': row[9],
                     'date_time': row[10],
                     'due_date': row[11] if len(row) > 11 else ""
                 })
-        
-          returns = {row[5] for row in rows if len(row) >= 9 and row[8] == 'return'}
-        
-        active = [b for b in borrows if b['book_barcode'] not in returns]
-        
+    
+        returns_dict = {}
+        for row in rows:
+            if len(row) >= 9 and row[8] == 'return':
+                key = (str(row[1]).strip(), str(row[5]).strip())
+                returns_dict[key] = True
+    
+        print(f"All borrows: {len(borrows)}")
+        print(f"Returns dict: {returns_dict}")
+    
+        active = []
+        for b in borrows:
+            key = (b['lrn'], b['book_barcode'])
+            if key not in returns_dict:
+                active.append(b)
+            else:
+                print(f"Book {b['book_barcode']} has been returned by student {b['lrn']}")
+    
+        print(f"Active borrowings: {len(active)}")
+    
         if student_id:
-            active = [b for b in active if str(b['lrn']) == str(student_id)]
-        
+            student_id_str = str(student_id).strip()
+            active = [b for b in active if b['lrn'] == student_id_str]
+            print(f"Active for student {student_id_str}: {len(active)}")
+    
         return active
     
     def check_overdue_books(self, student_id=None):
@@ -1052,30 +1067,54 @@ class LibrarySoftware:
         if not self.current_student or not self.current_book:
             messagebox.showerror("Error", "Please select both student and book")
             return
-        
+    
+        print(f"\n=== PROCESSING RETURN ===")
+        print(f"Student: {self.current_student['lrn']} - {self.current_student['name']}")
+        print(f"Book: {self.current_book['barcode']} - {self.current_book['title']}")
+    
         active = self.database.get_active_borrowings(self.current_student['lrn'])
-        borrowed = any(b['book_barcode'] == self.current_book['barcode'] for b in active)
-        
+    
+        print(f"\nActive borrowings for this student ({len(active)}):")
+        for b in active:
+            print(f"  - {b['book_barcode']}: {b['book_title']} (Borrowed: {b['date_time']})")
+    
+        borrowed = False
+        for borrowing in active:
+            if str(borrowing['book_barcode']).strip() == str(self.current_book['barcode']).strip():
+                borrowed = True
+                print(f"✅ Found matching borrowing: {borrowing['book_title']}")
+                break
+    
         if not borrowed:
-            messagebox.showerror("Error", "This book was not borrowed by the selected student")
-            return
+            all_trans = self.database.get_all_transactions()
+            print(f"\nAll transactions for book {self.current_book['barcode']}:")
+            for t in all_trans:
+                if str(t['book_barcode']) == str(self.current_book['barcode']):
+                    print(f"  - {t['action']} by {t['student_name']} on {t['date_time']}")
         
+            messagebox.showerror(
+                "Error", 
+                f"'{self.current_book['title']}' is not currently borrowed by {self.current_student['name']}.\n\n"
+                f"This student has {len(active)} active borrowing(s)."
+            )
+            return
+    
         success, trans_id = self.database.log_transaction(
             self.current_student,
             self.current_book,
             'return'
         )
-        
+    
         if success:
             self.notifier.send_return_notification(
                 self.current_student,
                 self.current_book
             )
-            
+        
             messagebox.showinfo("Success", f"Book returned successfully!\n\nTransaction ID: {trans_id}")
-            
+        
             self.refresh_all_tabs()
-            
+        
             self.student_id_entry.delete(0, tk.END)
             self.book_barcode_entry.delete(0, tk.END)
             self.current_student = None
@@ -1796,4 +1835,5 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = LibrarySoftware(root)
     root.mainloop()
+
 
