@@ -9,10 +9,6 @@ import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
-
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
 EMAIL_ADDRESS = "lanze.anderson@gmail.com"
@@ -25,15 +21,10 @@ BORROWING_DAYS = 3
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "library123"
 
-# Excel Configuration
 EXCEL_FILENAME = "DUAL-BARCODE-SCANNING-SYSTEM-3.xlsm"
 STUDENT_SHEET = "STUDENT DATABASE"
 BOOK_SHEET = "BOOK INVENTORY"
 TRANSACTION_SHEET = "TRANSACTION LOG"
-
-# ============================================================================
-# DATABASE CLASS
-# ============================================================================
 
 class ExcelLibraryDatabase:
     def __init__(self, filename=EXCEL_FILENAME):
@@ -45,15 +36,12 @@ class ExcelLibraryDatabase:
         try:
             self.workbook = load_workbook(self.filename)
         except FileNotFoundError:
-            # Create new workbook with required sheets
             self.workbook = Workbook()
             
-            # STUDENT DATABASE sheet
             student_sheet = self.workbook.active
             student_sheet.title = STUDENT_SHEET
             student_sheet.append(["LRN", "STUDENT NAME", "GRADE & SECTION", "EMAIL"])
             
-            # Add your sample students
             students_data = [
                 ["136515130851", "JESSABEL S. UMAYAN", "12-STEM", "jessabelsorianoumayan@gmail.com"],
                 ["136526130084", "FRITCHIE P. REYES", "12-STEM", "fritchiereyes@gmail.com"],
@@ -68,12 +56,10 @@ class ExcelLibraryDatabase:
             ]
             for student in students_data:
                 student_sheet.append(student)
-            
-            # BOOK INVENTORY sheet
+
             book_sheet = self.workbook.create_sheet(BOOK_SHEET)
             book_sheet.append(["BOOK BARCODE", "BOOK TITLE", "AUTHOR", "STATUS", "DATE BORROWED", "DUE DATE"])
-            
-            # Add your sample books
+
             books_data = [
                 ["9780026757577", "Manufacturing Technology (Today and Tomorrow)", "unknown"],
                 ["9789715147798", "True Filipino (In though, in Word and in Deed)", "unknown"],
@@ -88,8 +74,7 @@ class ExcelLibraryDatabase:
             ]
             for book in books_data:
                 book_sheet.append(book + ["Available", "", ""])
-            
-            # TRANSACTION LOG sheet
+
             trans_sheet = self.workbook.create_sheet(TRANSACTION_SHEET)
             trans_sheet.append([
                 "Transaction ID", "LRN", "Student Name", "Grade & Section", "Email",
@@ -99,7 +84,6 @@ class ExcelLibraryDatabase:
             
             self.workbook.save(self.filename)
         
-        # Load all sheets
         self.student_sheet = self.workbook[STUDENT_SHEET]
         self.book_sheet = self.workbook[BOOK_SHEET]
         self.trans_sheet = self.workbook[TRANSACTION_SHEET]
@@ -142,12 +126,10 @@ class ExcelLibraryDatabase:
     def log_transaction(self, student, book, action, due_date=None):
         """Log transaction to TRANSACTION LOG sheet"""
         try:
-            # Generate transaction ID
             timestamp = time.time()
             date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             due_date_str = due_date.strftime("%Y-%m-%d") if due_date else ""
             
-            # Get next transaction ID
             last_id = 0
             for row in self.trans_sheet.iter_rows(min_row=2, values_only=True):
                 if row[0] and str(row[0]).startswith('T'):
@@ -158,7 +140,7 @@ class ExcelLibraryDatabase:
                         pass
             trans_id = f"T{last_id + 1:06d}"
             
-            # Add to sheet
+
             self.trans_sheet.append([
                 trans_id,
                 student['lrn'],
@@ -174,7 +156,6 @@ class ExcelLibraryDatabase:
                 due_date_str
             ])
             
-            # Update book status in BOOK INVENTORY
             if action == 'borrow':
                 self.update_book_status(book['barcode'], 'Borrowed', date_time, due_date_str)
             elif action == 'return':
@@ -190,12 +171,9 @@ class ExcelLibraryDatabase:
         """Update book status in BOOK INVENTORY"""
         for row_idx, row in enumerate(self.book_sheet.iter_rows(min_row=2), start=2):
             if len(row) >= 1 and str(row[0].value) == str(barcode):
-                # Update status (column 4)
                 self.book_sheet.cell(row=row_idx, column=4, value=status)
-                # Update date borrowed (column 5)
-                self.book_sheet.cell(row=row_idx, column=5, value=date_borrowed)
-                # Update due date (column 6)
-                self.book_sheet.cell(row=row_idx, column=6, value=due_date)
+                  self.book_sheet.cell(row=row_idx, column=5, value=date_borrowed)
+                   self.book_sheet.cell(row=row_idx, column=6, value=due_date)
                 break
         self.save_workbook()
     
@@ -204,10 +182,9 @@ class ExcelLibraryDatabase:
         records = []
         rows = list(self.trans_sheet.iter_rows(min_row=2, values_only=True))
         
-        # Get all borrows
         borrows = []
         for row in rows:
-            if len(row) >= 9 and row[8] == 'borrow':  # Action column
+            if len(row) >= 9 and row[8] == 'borrow':
                 borrows.append({
                     'trans_id': row[0],
                     'lrn': row[1],
@@ -222,10 +199,8 @@ class ExcelLibraryDatabase:
                     'due_date': row[11] if len(row) > 11 else ""
                 })
         
-        # Get all returns
-        returns = {row[5] for row in rows if len(row) >= 9 and row[8] == 'return'}
+          returns = {row[5] for row in rows if len(row) >= 9 and row[8] == 'return'}
         
-        # Filter active
         active = [b for b in borrows if b['book_barcode'] not in returns]
         
         if student_id:
@@ -255,7 +230,6 @@ class ExcelLibraryDatabase:
     
     def add_student(self, lrn, name, grade_section="", email=""):
         """Add student to STUDENT DATABASE"""
-        # Check if already exists
         if self.find_student_by_id(lrn):
             return False, "LRN already exists"
         
@@ -267,7 +241,6 @@ class ExcelLibraryDatabase:
         """Remove student from STUDENT DATABASE"""
         for row_idx, row in enumerate(self.student_sheet.iter_rows(min_row=2), start=2):
             if len(row) >= 1 and str(row[0].value) == str(lrn):
-                # Check if student has active borrowings
                 active = self.get_active_borrowings(lrn)
                 if active:
                     return False, "Cannot remove student with active borrowings"
@@ -291,7 +264,6 @@ class ExcelLibraryDatabase:
         """Remove book from BOOK INVENTORY"""
         for row_idx, row in enumerate(self.book_sheet.iter_rows(min_row=2), start=2):
             if len(row) >= 1 and str(row[0].value) == str(barcode):
-                # Check if book is borrowed
                 if len(row) > 3 and row[3].value == "Borrowed":
                     return False, "Cannot remove book that is currently borrowed"
                 
@@ -379,10 +351,6 @@ class ExcelLibraryDatabase:
             'borrowed_books': len(all_books) - available_books
         }
 
-# ============================================================================
-# EMAIL NOTIFIER CLASS
-# ============================================================================
-
 class EmailNotifier:
     def __init__(self):
         self.host = EMAIL_HOST
@@ -397,7 +365,6 @@ class EmailNotifier:
             borrow_date = datetime.now().strftime("%B %d, %Y")
             due_date_str = due_date.strftime("%B %d, %Y")
 
-            # Send to student
             if student.get('email'):
                 self._send_student_email(
                     student['email'],
@@ -407,7 +374,6 @@ class EmailNotifier:
                     due_date_str
                 )
             
-            # Send to librarian
             self._send_librarian_email(
                 self.librarian_email,
                 student,
@@ -428,7 +394,6 @@ class EmailNotifier:
         try:
             return_date = datetime.now().strftime("%B %d, %Y")
 
-            # Send to librarian only
             self._send_librarian_email(
                 self.librarian_email,
                 student,
@@ -604,10 +569,6 @@ Please return the book by the due date to avoid penalties.
         
         print(f"✅ Email sent to librarian: {recipient}")
 
-# ============================================================================
-# MAIN APPLICATION CLASS
-# ============================================================================
-
 class LibrarySoftware:
     def __init__(self, root):
         self.root = root
@@ -615,8 +576,7 @@ class LibrarySoftware:
         self.root.geometry("1200x700")
         self.root.minsize(1000, 600)
         
-        # Configure colors
-        self.bg_color = "#f0f0f0"
+          self.bg_color = "#f0f0f0"
         self.header_color = "#2c3e50"
         self.accent_color = "#3498db"
         self.success_color = "#27ae60"
@@ -624,30 +584,23 @@ class LibrarySoftware:
         
         self.root.configure(bg=self.bg_color)
         
-        # Initialize database
-        self.database = ExcelLibraryDatabase()
+         self.database = ExcelLibraryDatabase()
         
-        # Initialize email notifier
-        self.notifier = EmailNotifier()
+         self.notifier = EmailNotifier()
         
-        # Current user (admin only)
         self.current_user = None
         
-        # Store references to treeviews for refreshing
         self.student_tree = None
         self.book_tree = None
         self.transaction_tree = None
         self.overdue_tree = None
         
-        # Setup UI
         self.setup_ui()
         
-        # Show login screen
         self.show_login()
     
     def setup_ui(self):
         """Setup the main UI structure"""
-        # Header
         self.header_frame = tk.Frame(self.root, bg=self.header_color, height=80)
         self.header_frame.pack(fill=tk.X, side=tk.TOP)
         self.header_frame.pack_propagate(False)
@@ -662,7 +615,6 @@ class LibrarySoftware:
         )
         self.header_label.pack(side=tk.LEFT, padx=20, pady=20)
         
-        # User info in header
         self.user_frame = tk.Frame(self.header_frame, bg=self.header_color)
         self.user_frame.pack(side=tk.RIGHT, padx=20)
         
@@ -685,7 +637,6 @@ class LibrarySoftware:
             command=self.logout
         )
         
-        # Main content area
         self.content_frame = tk.Frame(self.root, bg=self.bg_color)
         self.content_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=20)
     
@@ -713,7 +664,6 @@ class LibrarySoftware:
         )
         title.pack(pady=50)
         
-        # Login form
         tk.Label(login_frame, text="Username:", font=("Helvetica", 12)).pack(pady=5)
         username = tk.Entry(login_frame, font=("Helvetica", 14), width=20)
         username.pack(pady=5)
@@ -761,48 +711,39 @@ class LibrarySoftware:
         """Show admin dashboard with barcode scanning"""
         self.clear_content()
         
-        # Create notebook for tabs
         notebook = ttk.Notebook(self.content_frame)
         notebook.pack(fill=tk.BOTH, expand=True)
         
-        # Scanner Tab (Main)
         scanner_frame = ttk.Frame(notebook)
         notebook.add(scanner_frame, text="Barcode Scanner")
         self.setup_scanner_tab(scanner_frame)
         
-        # Dashboard Tab
         dashboard_frame = ttk.Frame(notebook)
         notebook.add(dashboard_frame, text="Dashboard")
         self.setup_admin_dashboard(dashboard_frame)
         
-        # Students Tab
         students_frame = ttk.Frame(notebook)
         notebook.add(students_frame, text="Student Database")
         self.setup_admin_students(students_frame)
         
-        # Books Tab
         books_frame = ttk.Frame(notebook)
         notebook.add(books_frame, text="Book Inventory")
         self.setup_admin_books(books_frame)
         
-        # Transactions Tab
         transactions_frame = ttk.Frame(notebook)
         notebook.add(transactions_frame, text="Transaction Log")
         self.setup_admin_transactions(transactions_frame)
-        
-        # Overdue Tab
+    
         overdue_frame = ttk.Frame(notebook)
         notebook.add(overdue_frame, text="Overdue Books")
         self.setup_admin_overdue(overdue_frame)
         
-        # Settings Tab
         settings_frame = ttk.Frame(notebook)
         notebook.add(settings_frame, text="Settings")
         self.setup_admin_settings(settings_frame)
     
     def setup_scanner_tab(self, parent):
         """Setup barcode scanner tab with left/right/bottom layout"""
-    # Title at the top
         title_label = tk.Label(
             parent, 
             text="Barcode Scanner Interface",
@@ -811,16 +752,13 @@ class LibrarySoftware:
         )
         title_label.pack(pady=10)
     
-    # Main container frame for left and right panels
         main_container = tk.Frame(parent, bg=self.bg_color)
         main_container.pack(fill=tk.BOTH, expand=True, padx=15)
     
-    # ===== LEFT PANEL - STEP 1 =====
         left_frame = tk.Frame(main_container, bg=self.bg_color, relief=tk.GROOVE, bd=1, width=450)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
         left_frame.pack_propagate(False)
     
-    # Step 1 header
         step1_label = tk.Label(
             left_frame,
             text="STEP 1: Scan Student LRN",
@@ -831,7 +769,6 @@ class LibrarySoftware:
         )
         step1_label.pack(fill=tk.X)
     
-    # Student input area
         student_input_frame = tk.Frame(left_frame, bg=self.bg_color, padx=15, pady=10)
         student_input_frame.pack(fill=tk.X)
     
@@ -860,7 +797,6 @@ class LibrarySoftware:
             font=("Helvetica", 9)
         ).pack(side=tk.LEFT)
     
-    # Student info display
         self.student_info_frame = tk.Frame(left_frame, bg="#e8f4f8", relief=tk.SUNKEN, bd=1, padx=8, pady=8)
         self.student_info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
     
@@ -875,12 +811,10 @@ class LibrarySoftware:
         )
         self.student_info_label.pack(fill=tk.BOTH, expand=True)
     
-    # ===== RIGHT PANEL - STEP 2 =====
         right_frame = tk.Frame(main_container, bg=self.bg_color, relief=tk.GROOVE, bd=1, width=450)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(5, 0))
         right_frame.pack_propagate(False)
     
-    # Step 2 header
         step2_label = tk.Label(
             right_frame,
             text="STEP 2: Scan Book Barcode",
@@ -891,7 +825,6 @@ class LibrarySoftware:
         )
         step2_label.pack(fill=tk.X)
     
-    # Book input area
         book_input_frame = tk.Frame(right_frame, bg=self.bg_color, padx=15, pady=10)
         book_input_frame.pack(fill=tk.X)
     
@@ -920,7 +853,6 @@ class LibrarySoftware:
             font=("Helvetica", 9)
         ).pack(side=tk.LEFT)
     
-    # Book info display
         self.book_info_frame = tk.Frame(right_frame, bg="#e8f4f8", relief=tk.SUNKEN, bd=1, padx=18, pady=8)
         self.book_info_frame.pack(fill=tk.BOTH, expand=True, padx=15, pady=10)
     
@@ -935,11 +867,9 @@ class LibrarySoftware:
         )
         self.book_info_label.pack(fill=tk.BOTH, expand=True)
     
-    # ===== BOTTOM PANEL - STEP 3 =====
         bottom_frame = tk.Frame(parent, bg=self.bg_color, relief=tk.GROOVE, bd=1)
         bottom_frame.pack(fill=tk.X, padx=15, pady=10)
     
-    # Step 3 header
         step3_label = tk.Label(
             bottom_frame,
             text="STEP 3: Select Action",
@@ -950,7 +880,6 @@ class LibrarySoftware:
         )
         step3_label.pack(fill=tk.X)
     
-    # Action buttons
         action_frame = tk.Frame(bottom_frame, bg=self.bg_color, pady=10)
         action_frame.pack()
     
@@ -982,7 +911,6 @@ class LibrarySoftware:
         )
         self.return_btn.pack(side=tk.LEFT, padx=10)
     
-    # Status display at the very bottom
         self.scanner_status = tk.Label(
             parent,
             text="Ready. Scan student LRN to begin.",
@@ -992,7 +920,6 @@ class LibrarySoftware:
         )
         self.scanner_status.pack(pady=(0, 5))
     
-    # Store current selections
         self.current_student = None
         self.current_book = None
     
@@ -1011,7 +938,6 @@ class LibrarySoftware:
             self.student_info_label.config(text=info_text, fg="black")
             self.scanner_status.config(text=f"Student selected: {student['name']}. Now scan book.")
             
-            # Check if student has overdue books
             overdue = self.database.check_overdue_books(student_id)
             if overdue:
                 self.scanner_status.config(
@@ -1065,7 +991,6 @@ class LibrarySoftware:
                 self.borrow_btn.config(state=tk.NORMAL, bg=self.success_color)
                 self.return_btn.config(state=tk.DISABLED, bg="gray")
             else:
-                # Book is borrowed, enable return button
                 self.borrow_btn.config(state=tk.DISABLED, bg="gray")
                 self.return_btn.config(state=tk.NORMAL, bg=self.warning_color)
         else:
@@ -1078,22 +1003,18 @@ class LibrarySoftware:
             messagebox.showerror("Error", "Please select both student and book")
             return
         
-        # Check if book is available
         if self.current_book['status'] != "Available":
             messagebox.showerror("Error", "This book is not available for borrowing")
             return
         
-        # Check for overdue books
         overdue = self.database.check_overdue_books(self.current_student['lrn'])
         if overdue:
             if not messagebox.askyesno("Overdue Warning", 
                 f"Student has {len(overdue)} overdue book(s). Continue borrowing?"):
                 return
         
-        # Calculate due date
         due_date = datetime.now() + timedelta(days=BORROWING_DAYS)
         
-        # Log transaction
         success, trans_id = self.database.log_transaction(
             self.current_student,
             self.current_book,
@@ -1102,7 +1023,6 @@ class LibrarySoftware:
         )
         
         if success:
-            # Send email notifications
             self.notifier.send_borrow_notification(
                 self.current_student,
                 self.current_book,
@@ -1114,10 +1034,8 @@ class LibrarySoftware:
                 f"Book borrowed successfully!\n\nTransaction ID: {trans_id}\nDue Date: {due_date.strftime('%Y-%m-%d')}"
             )
             
-            # Refresh all displays
             self.refresh_all_tabs()
             
-            # Clear selections
             self.student_id_entry.delete(0, tk.END)
             self.book_barcode_entry.delete(0, tk.END)
             self.current_student = None
@@ -1135,7 +1053,6 @@ class LibrarySoftware:
             messagebox.showerror("Error", "Please select both student and book")
             return
         
-        # Verify that this book was borrowed by this student
         active = self.database.get_active_borrowings(self.current_student['lrn'])
         borrowed = any(b['book_barcode'] == self.current_book['barcode'] for b in active)
         
@@ -1143,7 +1060,6 @@ class LibrarySoftware:
             messagebox.showerror("Error", "This book was not borrowed by the selected student")
             return
         
-        # Log transaction
         success, trans_id = self.database.log_transaction(
             self.current_student,
             self.current_book,
@@ -1151,7 +1067,6 @@ class LibrarySoftware:
         )
         
         if success:
-            # Send notification to librarian
             self.notifier.send_return_notification(
                 self.current_student,
                 self.current_book
@@ -1159,10 +1074,8 @@ class LibrarySoftware:
             
             messagebox.showinfo("Success", f"Book returned successfully!\n\nTransaction ID: {trans_id}")
             
-            # Refresh all displays
             self.refresh_all_tabs()
             
-            # Clear selections
             self.student_id_entry.delete(0, tk.END)
             self.book_barcode_entry.delete(0, tk.END)
             self.current_student = None
@@ -1178,7 +1091,6 @@ class LibrarySoftware:
         """Setup admin dashboard"""
         stats = self.database.get_statistics()
         
-        # Statistics cards
         cards_frame = tk.Frame(parent, bg=self.bg_color)
         cards_frame.pack(pady=20)
         
@@ -1219,7 +1131,6 @@ class LibrarySoftware:
                 col = 0
                 row += 1
         
-        # Quick actions
         actions_frame = tk.Frame(parent, bg=self.bg_color, relief=tk.GROOVE, bd=2)
         actions_frame.pack(pady=20, fill=tk.X, padx=20)
         
@@ -1260,7 +1171,6 @@ class LibrarySoftware:
             padx=20
         ).pack(side=tk.LEFT, padx=5)
         
-        # Refresh button
         tk.Button(
             btn_frame,
             text="Refresh Dashboard",
@@ -1272,7 +1182,6 @@ class LibrarySoftware:
     
     def refresh_dashboard(self, parent):
         """Refresh dashboard statistics"""
-        # Clear and recreate dashboard
         for widget in parent.winfo_children():
             widget.destroy()
         self.setup_admin_dashboard(parent)
@@ -1313,7 +1222,6 @@ class LibrarySoftware:
         search_entry = tk.Entry(toolbar, width=30)
         search_entry.pack(side=tk.LEFT)
         
-        # Students treeview
         columns = ('LRN', 'Student Name', 'Grade & Section', 'Email', 'Books Borrowed')
         self.student_tree = ttk.Treeview(parent, columns=columns, show='headings', height=20)
         
@@ -1341,7 +1249,6 @@ class LibrarySoftware:
         
         search_entry.bind('<KeyRelease>', lambda e: search())
         
-        # Initial load
         self.refresh_student_list()
     
     def refresh_student_list(self, query=""):
@@ -1349,16 +1256,12 @@ class LibrarySoftware:
         if not self.student_tree:
             return
         
-        # Clear existing items
         for item in self.student_tree.get_children():
             self.student_tree.delete(item)
         
-        # Get fresh data from database
         students = self.database.get_all_students()
         
-        # Add students to treeview
         for lrn, student in students.items():
-            # Apply search filter
             if query:
                 if query not in lrn.lower() and query not in student['name'].lower():
                     continue
@@ -1408,7 +1311,6 @@ class LibrarySoftware:
         search_entry = tk.Entry(toolbar, width=30)
         search_entry.pack(side=tk.LEFT)
         
-        # Books treeview
         columns = ('Barcode', 'Title', 'Author', 'Status', 'Date Borrowed', 'Due Date')
         self.book_tree = ttk.Treeview(parent, columns=columns, show='headings', height=20)
         
@@ -1438,7 +1340,6 @@ class LibrarySoftware:
         
         search_entry.bind('<KeyRelease>', lambda e: search())
         
-        # Initial load
         self.refresh_book_list()
     
     def refresh_book_list(self, query=""):
@@ -1446,16 +1347,12 @@ class LibrarySoftware:
         if not self.book_tree:
             return
         
-        # Clear existing items
         for item in self.book_tree.get_children():
             self.book_tree.delete(item)
         
-        # Get fresh data from database
         books = self.database.get_all_books()
         
-        # Add books to treeview
         for barcode, book in books.items():
-            # Apply search filter
             if query:
                 if query not in barcode.lower() and query not in book['title'].lower():
                     continue
@@ -1500,7 +1397,6 @@ class LibrarySoftware:
         self.transaction_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10))
         
-        # Refresh button
         tk.Button(
             parent,
             text="Refresh",
@@ -1510,7 +1406,6 @@ class LibrarySoftware:
             padx=20
         ).pack(pady=10)
         
-        # Initial load
         self.refresh_transaction_list()
     
     def refresh_transaction_list(self):
@@ -1518,14 +1413,12 @@ class LibrarySoftware:
         if not self.transaction_tree:
             return
         
-        # Clear existing items
         for item in self.transaction_tree.get_children():
             self.transaction_tree.delete(item)
         
-        # Get fresh data from database
+
         transactions = self.database.get_all_transactions(limit=500)
         
-        # Add transactions to treeview
         for trans in transactions:
             self.transaction_tree.insert('', tk.END, values=(
                 trans['trans_id'],
@@ -1566,7 +1459,7 @@ class LibrarySoftware:
         self.overdue_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10))
         
-        # Refresh button
+
         tk.Button(
             parent,
             text="Refresh",
@@ -1585,7 +1478,6 @@ class LibrarySoftware:
             padx=20
         ).pack(pady=5)
         
-        # Initial load
         self.refresh_overdue_list()
     
     def refresh_overdue_list(self):
@@ -1593,14 +1485,11 @@ class LibrarySoftware:
         if not self.overdue_tree:
             return
         
-        # Clear existing items
         for item in self.overdue_tree.get_children():
             self.overdue_tree.delete(item)
         
-        # Get fresh data from database
         overdue = self.database.check_overdue_books()
         
-        # Add overdue books to treeview
         for book in overdue:
             self.overdue_tree.insert('', tk.END, values=(
                 book['student_name'],
@@ -1624,7 +1513,6 @@ class LibrarySoftware:
             bg=self.bg_color
         ).pack(pady=20)
         
-        # Borrowing days
         days_frame = tk.Frame(settings_frame, bg=self.bg_color)
         days_frame.pack(fill=tk.X, padx=50, pady=10)
         
@@ -1661,7 +1549,6 @@ class LibrarySoftware:
             fg="white"
         ).pack(side=tk.LEFT, padx=10)
         
-        # Admin password
         pass_frame = tk.Frame(settings_frame, bg=self.bg_color)
         pass_frame.pack(fill=tk.X, padx=50, pady=20)
         
@@ -1708,7 +1595,6 @@ class LibrarySoftware:
             fg="white"
         ).pack(side=tk.LEFT, padx=10)
         
-        # Librarian email
         email_frame = tk.Frame(settings_frame, bg=self.bg_color)
         email_frame.pack(fill=tk.X, padx=50, pady=20)
         
@@ -1738,10 +1624,6 @@ class LibrarySoftware:
             bg=self.accent_color,
             fg="white"
         ).pack(side=tk.LEFT, padx=10)
-    
-    # ============================================================================
-    # HELPER METHODS
-    # ============================================================================
     
     def add_student_dialog(self):
         """Dialog to add new student to STUDENT DATABASE"""
@@ -1778,7 +1660,6 @@ class LibrarySoftware:
                 if success:
                     messagebox.showinfo("Success", msg)
                     dialog.destroy()
-                    # Refresh the student list
                     self.refresh_student_list()
                 else:
                     messagebox.showerror("Error", msg)
@@ -1794,7 +1675,6 @@ class LibrarySoftware:
             success, msg = self.database.remove_student(lrn)
             if success:
                 messagebox.showinfo("Success", msg)
-                # Refresh the student list
                 self.refresh_student_list()
             else:
                 messagebox.showerror("Error", msg)
@@ -1829,7 +1709,6 @@ class LibrarySoftware:
                 if success:
                     messagebox.showinfo("Success", msg)
                     dialog.destroy()
-                    # Refresh the book list
                     self.refresh_book_list()
                 else:
                     messagebox.showerror("Error", msg)
@@ -1845,7 +1724,6 @@ class LibrarySoftware:
             success, msg = self.database.remove_book(barcode)
             if success:
                 messagebox.showinfo("Success", msg)
-                # Refresh the book list
                 self.refresh_book_list()
             else:
                 messagebox.showerror("Error", msg)
@@ -1857,7 +1735,6 @@ class LibrarySoftware:
             messagebox.showinfo("Info", "No overdue books found")
             return
         
-        # Group by student
         students_overdue = {}
         for book in overdue:
             sid = book['lrn']
@@ -1866,7 +1743,6 @@ class LibrarySoftware:
             students_overdue[sid].append(book)
         
         if messagebox.askyesno("Confirm", f"Send notices to {len(students_overdue)} students?"):
-            # In a real implementation, you would send emails here
             messagebox.showinfo("Success", f"Notices sent to {len(students_overdue)} students")
     
     def generate_report(self):
@@ -1916,11 +1792,8 @@ Students with Active Borrowings: {stats['active_borrowings']}
         else:
             messagebox.showerror("Error", "Database file not found")
 
-# ============================================================================
-# MAIN ENTRY POINT
-# ============================================================================
-
 if __name__ == "__main__":
     root = tk.Tk()
     app = LibrarySoftware(root)
     root.mainloop()
+
