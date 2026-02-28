@@ -20,7 +20,7 @@ BORROWING_DAYS = 3
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "library123"
 
-EXCEL_FILENAME = "DUAL-BARCODE-SCANNING-SYSTEM-3.xlsm"
+EXCEL_FILENAME = "DUAL-BARCODE-SCANNING-SYSTEM-3.xlsx"
 STUDENT_SHEET = "STUDENT DATABASE"
 BOOK_SHEET = "BOOK INVENTORY"
 TRANSACTION_SHEET = "TRANSACTION LOG"
@@ -171,8 +171,8 @@ class ExcelLibraryDatabase:
         for row_idx, row in enumerate(self.book_sheet.iter_rows(min_row=2), start=2):
             if len(row) >= 1 and str(row[0].value) == str(barcode):
                 self.book_sheet.cell(row=row_idx, column=4, value=status)
-                  self.book_sheet.cell(row=row_idx, column=5, value=date_borrowed)
-                   self.book_sheet.cell(row=row_idx, column=6, value=due_date)
+                self.book_sheet.cell(row=row_idx, column=5, value=date_borrowed)
+                self.book_sheet.cell(row=row_idx, column=6, value=due_date)
                 break
         self.save_workbook()
     
@@ -591,7 +591,7 @@ class LibrarySoftware:
         self.root.geometry("1200x700")
         self.root.minsize(1000, 600)
         
-          self.bg_color = "#f0f0f0"
+        self.bg_color = "#f0f0f0"
         self.header_color = "#2c3e50"
         self.accent_color = "#3498db"
         self.success_color = "#27ae60"
@@ -599,9 +599,9 @@ class LibrarySoftware:
         
         self.root.configure(bg=self.bg_color)
         
-         self.database = ExcelLibraryDatabase()
+        self.database = ExcelLibraryDatabase()
         
-         self.notifier = EmailNotifier()
+        self.notifier = EmailNotifier()
         
         self.current_user = None
         
@@ -1835,5 +1835,3 @@ if __name__ == "__main__":
     root = tk.Tk()
     app = LibrarySoftware(root)
     root.mainloop()
-
-
