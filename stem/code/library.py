@@ -8,10 +8,11 @@ import smtplib
 import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
-# ============================================================================
-# CONFIGURATION
-# ============================================================================
+import sys
+import io
+if sys.platform == 'win32':
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
@@ -24,7 +25,7 @@ BORROWING_DAYS = 3
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "library123"
 
-EXCEL_FILENAME = "DUAL-BARCODE-SCANNING-SYSTEM-3.xlsm"
+EXCEL_FILENAME = "DUAL-BARCODE-SCANNING-SYSTEM-3.xlsx"
 STUDENT_SHEET = "STUDENT DATABASE"
 BOOK_SHEET = "BOOK INVENTORY"
 TRANSACTION_SHEET = "TRANSACTION LOG"
@@ -133,7 +134,7 @@ class ExcelLibraryDatabase:
             timestamp = time.time()
             date_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             due_date_str = due_date.strftime("%Y-%m-%d") if due_date else ""
-            
+        
             last_id = 0
             for row in self.trans_sheet.iter_rows(min_row=2, values_only=True):
                 if row[0] and str(row[0]).startswith('T'):
@@ -143,7 +144,7 @@ class ExcelLibraryDatabase:
                     except:
                         pass
             trans_id = f"T{last_id + 1:06d}"
-            
+        
             self.trans_sheet.append([
                 trans_id,
                 student['lrn'],
@@ -158,15 +159,15 @@ class ExcelLibraryDatabase:
                 date_time,
                 due_date_str
             ])
-            
+        
             if action == 'borrow':
                 self.update_book_status(book['barcode'], 'Borrowed', date_time, due_date_str)
             elif action == 'return':
                 self.update_book_status(book['barcode'], 'Available', '', '')
-            
+        
             self.save_workbook()
             return True, trans_id
-            
+        
         except Exception as e:
             return False, str(e)
     
@@ -181,50 +182,53 @@ class ExcelLibraryDatabase:
         self.save_workbook()
     
     def get_active_borrowings(self, student_id=None):
-        """Get all active borrowings from TRANSACTION LOG"""
-        records = []
         rows = list(self.trans_sheet.iter_rows(min_row=2, values_only=True))
-        
-        borrows = []
+    
+        all_trans = []
         for row in rows:
-            if len(row) >= 9 and row[8] == 'borrow':  # Action column
-                borrows.append({
+            if len(row) >= 9:
+                all_trans.append({
                     'trans_id': row[0],
-                   'lrn': str(row[1]).strip(),
+                    'lrn': str(row[1]).strip(),
                     'student_name': row[2],
                     'grade_section': row[3],
                     'email': row[4],
                     'book_barcode': str(row[5]).strip(),
                     'book_title': row[6],
                     'author': row[7],
-                    'timestamp': row[9],
+                    'action': row[8],
+                    'timestamp': float(row[9]) if row[9] else 0,
                     'date_time': row[10],
                     'due_date': row[11] if len(row) > 11 else ""
                 })
-        
-        returns_dict = {}
-        for row in rows:
-            if len(row) >= 9 and row[8] == 'return':
-                key = (str(row[1]).strip(), str(row[5]).strip())
-                returns_dict[key] = True
     
-        print(f"All borrows: {len(borrows)}")
-        print(f"Returns dict: {returns_dict}")
-        
+        all_trans.sort(key=lambda x: x['timestamp'])
+    
+        transactions_by_book = {}
+        for trans in all_trans:
+            key = (trans['lrn'], trans['book_barcode'], trans['book_title'])
+            if key not in transactions_by_book:
+                transactions_by_book[key] = []
+            transactions_by_book[key].append(trans)
+    
         active = []
-        for b in borrows:
-            key = (b['lrn'], b['book_barcode'])
-            if key not in returns_dict:
-                active.append(b)
-            else:
-                print(f"Book {b['book_barcode']} has been returned by student {b['lrn']}")
     
-        print(f"Active borrowings: {len(active)}")
+        for key, trans_list in transactions_by_book.items():
+            trans_list.sort(key=lambda x: x['timestamp'])
+        
+            borrows = []
+            for trans in trans_list:
+                if trans['action'] == 'borrow':
+                    borrows.append(trans)
+                elif trans['action'] == 'return' and borrows:
+                    borrows.pop()
+        
+            for borrow in borrows:
+                active.append(borrow)
     
         if student_id:
             student_id_str = str(student_id).strip()
             active = [b for b in active if b['lrn'] == student_id_str]
-            print(f"Active for student {student_id_str}: {len(active)}")
     
         return active
     
@@ -233,19 +237,21 @@ class ExcelLibraryDatabase:
         active = self.get_active_borrowings(student_id)
         overdue = []
         now = time.time()
-        
+    
         for record in active:
             try:
-                if record['due_date']:
+                if record['due_date'] and record['due_date'].strip():
                     due_date = datetime.strptime(record['due_date'], "%Y-%m-%d")
                     due_timestamp = due_date.timestamp()
                     if now > due_timestamp:
                         days_overdue = int((now - due_timestamp) / (24 * 60 * 60))
                         record['days_overdue'] = days_overdue
                         overdue.append(record)
-            except:
+                        print(f"[OVERDUE] {record['book_title']} - {days_overdue} days")
+            except Exception as e:
+                print(f"Error checking overdue: {e}")
                 continue
-        
+    
         return overdue
     
     def add_student(self, lrn, name, grade_section="", email=""):
@@ -406,7 +412,7 @@ class EmailNotifier:
             return True
             
         except Exception as e:
-            print(f"❌ Email failed: {e}")
+            print(f"[ERROR] Email failed: {e}")
             return False
 
     def send_return_notification(self, student, book):
@@ -426,7 +432,7 @@ class EmailNotifier:
             return True
             
         except Exception as e:
-            print(f"❌ Email failed: {e}")
+            print(f"[ERROR] Email failed: {e}")
             return False
 
     def _send_student_email(self, recipient, student, book, borrow_date, due_date_str):
@@ -500,7 +506,167 @@ Please return the book by the due date to avoid penalties.
             server.login(self.sender, self.password)
             server.send_message(msg)
         
-        print(f"✅ Email sent to student: {recipient}")
+        print(f"[SUCCESS] Email sent to student: {recipient}")
+
+    def send_overdue_notice(self, student, overdue_books):
+        """Send email to student about overdue books"""
+        try:
+            current_date = datetime.now().strftime("%B %d, %Y")
+        
+            books_list = ""
+            for book in overdue_books:
+                days = book.get('days_overdue', 1)
+                due_date = book.get('due_date', 'Unknown')
+                books_list += f"""
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{book['book_title']}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{due_date}</td>
+                    <td style="padding: 8px; border: 1px solid #ddd; color: #e74c3c; font-weight: bold;">{days} days</td>
+                </tr>
+                """
+        
+            if student.get('email'):
+                self._send_overdue_student_email(
+                    student['email'],
+                    student,
+                    books_list,
+                    current_date,
+                    len(overdue_books)
+                )
+        
+            self._send_overdue_librarian_email(
+                self.librarian_email,
+                student,
+                books_list,
+                current_date,
+                len(overdue_books)
+            )
+        
+            return True
+        
+        except Exception as e:
+            print(f"[ERROR] Overdue email failed: {e}")
+            return False
+
+    def _send_overdue_student_email(self, recipient, student, books_list, current_date, count):
+        """Send overdue notice to student"""
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"⚠️ Overdue Book Notice - {LIBRARY_NAME}"
+        msg['From'] = f"{LIBRARY_NAME} <{self.sender}>"
+        msg['To'] = recipient
+
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="color: #e74c3c;">⚠️ Overdue Book Notice</h2>
+            <p>Dear <strong>{student['name']}</strong>,</p>
+            <p>You have <strong style="color: #e74c3c;">{count} overdue book(s)</strong> that need to be returned immediately:</p>
+        
+            <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin: 20px 0;">
+                <tr style="background-color: #e74c3c; color: white;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Book Title</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Due Date</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Days Overdue</th>
+                </tr>
+                {books_list}
+            </table>
+        
+            <p style="margin-top: 20px;">Please return these books as soon as possible to avoid further penalties.</p>
+            <p>If you have already returned these books, please disregard this message.</p>
+            <p>Thank you for your cooperation.</p>
+        
+            <hr style="border: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #7f8c8d; font-size: 12px;">This is an automated message from {LIBRARY_NAME}. Please do not reply to this email.</p>
+        </body>
+        </html>
+        """
+
+        text_body = f"""
+    OVERDUE BOOK NOTICE
+
+    Dear {student['name']},
+
+    You have {count} overdue book(s) that need to be returned immediately:
+
+    {books_list}
+
+    Please return these books as soon as possible to avoid further penalties.
+
+    - {LIBRARY_NAME}
+        """
+
+        msg.attach(MIMEText(text_body, 'plain'))
+        msg.attach(MIMEText(html_body, 'html'))
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP(self.host, self.port) as server:
+            server.starttls(context=context)
+            server.login(self.sender, self.password)
+            server.send_message(msg)
+    
+        print(f"[SUCCESS] Overdue notice sent to student: {recipient}")
+
+    def _send_overdue_librarian_email(self, recipient, student, books_list, current_date, count):
+        """Send overdue notice to librarian"""
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"⚠️ Student Overdue Alert: {student['name']}"
+        msg['From'] = f"{LIBRARY_NAME} System <{self.sender}>"
+        msg['To'] = recipient
+
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2 style="color: #e74c3c;">📋 Student Overdue Report</h2>
+        
+            <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin: 20px 0;">
+                <tr style="background-color: #3498db; color: white;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;" colspan="2">Student Information</th>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;"><strong>LRN:</strong></td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{student['lrn']}</td>
+                </tr>
+                <tr style="background-color: #f2f2f2;">
+                    <td style="padding: 8px; border: 1px solid #ddd;"><strong>Name:</strong></td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{student['name']}</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px; border: 1px solid #ddd;"><strong>Grade & Section:</strong></td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{student.get('grade_section', 'N/A')}</td>
+                </tr>
+                <tr style="background-color: #f2f2f2;">
+                    <td style="padding: 8px; border: 1px solid #ddd;"><strong>Email:</strong></td>
+                    <td style="padding: 8px; border: 1px solid #ddd;">{student.get('email', 'N/A')}</td>
+                </tr>
+            </table>
+        
+            <h3>Overdue Books ({count})</h3>
+            <table style="border-collapse: collapse; width: 100%; max-width: 600px; margin: 20px 0;">
+                <tr style="background-color: #e74c3c; color: white;">
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Book Title</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Due Date</th>
+                    <th style="padding: 10px; text-align: left; border: 1px solid #ddd;">Days Overdue</th>
+                </tr>
+                {books_list}
+            </table>
+        
+            <p><em>Notification sent to student on {current_date}</em></p>
+        
+            <hr style="border: 1px solid #eee; margin: 20px 0;">
+            <p style="color: #7f8c8d; font-size: 12px;">This is an automated message from the Library System.</p>
+        </body>
+        </html>
+        """
+
+        msg.attach(MIMEText(html_body, 'html'))
+
+        context = ssl.create_default_context()
+        with smtplib.SMTP(self.host, self.port) as server:
+            server.starttls(context=context)
+            server.login(self.sender, self.password)
+            server.send_message(msg)
+    
+        print(f"[SUCCESS] Overdue notice sent to librarian: {recipient}")
 
     def _send_librarian_email(self, recipient, student, book, date_str, due_date_str, action):
         """Send email to librarian"""
@@ -587,7 +753,7 @@ Please return the book by the due date to avoid penalties.
             server.login(self.sender, self.password)
             server.send_message(msg)
         
-        print(f"✅ Email sent to librarian: {recipient}")
+        print(f"[SUCCESS] Email sent to librarian: {recipient}")
 
 class LibrarySoftware:
     def __init__(self, root):
@@ -1022,40 +1188,44 @@ class LibrarySoftware:
         if not self.current_student or not self.current_book:
             messagebox.showerror("Error", "Please select both student and book")
             return
-        
+    
         if self.current_book['status'] != "Available":
             messagebox.showerror("Error", "This book is not available for borrowing")
             return
-        
+    
         overdue = self.database.check_overdue_books(self.current_student['lrn'])
         if overdue:
             if not messagebox.askyesno("Overdue Warning", 
                 f"Student has {len(overdue)} overdue book(s). Continue borrowing?"):
                 return
-        
+    
         due_date = datetime.now() + timedelta(days=BORROWING_DAYS)
-        
+    
         success, trans_id = self.database.log_transaction(
             self.current_student,
             self.current_book,
             'borrow',
             due_date
         )
-        
+    
         if success:
             self.notifier.send_borrow_notification(
                 self.current_student,
                 self.current_book,
                 due_date
             )
-            
-            messagebox.showinfo(
-                "Success", 
-                f"Book borrowed successfully!\n\nTransaction ID: {trans_id}\nDue Date: {due_date.strftime('%Y-%m-%d')}"
+        
+            self.show_notification(
+                "✅ BOOK BORROWED SUCCESSFULLY",
+                f"Student: {self.current_student['name']}\n"
+                f"Book: {self.current_book['title']}\n"
+                f"Due Date: {due_date.strftime('%Y-%m-%d')}\n"
+                f"Transaction ID: {trans_id}",
+                "success"
             )
-            
+        
             self.refresh_all_tabs()
-            
+        
             self.student_id_entry.delete(0, tk.END)
             self.book_barcode_entry.delete(0, tk.END)
             self.current_student = None
@@ -1072,22 +1242,22 @@ class LibrarySoftware:
         if not self.current_student or not self.current_book:
             messagebox.showerror("Error", "Please select both student and book")
             return
-        
+    
         print(f"\n=== PROCESSING RETURN ===")
         print(f"Student: {self.current_student['lrn']} - {self.current_student['name']}")
         print(f"Book: {self.current_book['barcode']} - {self.current_book['title']}")
 
         active = self.database.get_active_borrowings(self.current_student['lrn'])
-        
+    
         print(f"\nActive borrowings for this student ({len(active)}):")
         for b in active:
             print(f"  - {b['book_barcode']}: {b['book_title']} (Borrowed: {b['date_time']})")
-        
+    
         borrowed = False
         for borrowing in active:
             if str(borrowing['book_barcode']).strip() == str(self.current_book['barcode']).strip():
                 borrowed = True
-                print(f"✅ Found matching borrowing: {borrowing['book_title']}")
+                print(f"[FOUND] Matching borrowing: {borrowing['book_title']}")
                 break
 
         if not borrowed:
@@ -1096,30 +1266,36 @@ class LibrarySoftware:
             for t in all_trans:
                 if str(t['book_barcode']) == str(self.current_book['barcode']):
                     print(f"  - {t['action']} by {t['student_name']} on {t['date_time']}")
-        
+    
             messagebox.showerror(
                 "Error", 
                 f"'{self.current_book['title']}' is not currently borrowed by {self.current_student['name']}.\n\n"
                 f"This student has {len(active)} active borrowing(s)."
             )
             return
-        
+    
         success, trans_id = self.database.log_transaction(
             self.current_student,
             self.current_book,
             'return'
         )
-    
+
         if success:
             self.notifier.send_return_notification(
                 self.current_student,
                 self.current_book
             )
-            
-            messagebox.showinfo("Success", f"Book returned successfully!\n\nTransaction ID: {trans_id}")
-            
+        
+            self.show_notification(
+                "✅ BOOK RETURNED SUCCESSFULLY",
+                f"Student: {self.current_student['name']}\n"
+                f"Book: {self.current_book['title']}\n"
+                f"Transaction ID: {trans_id}",
+                "success"
+            )
+        
             self.refresh_all_tabs()
-            
+        
             self.student_id_entry.delete(0, tk.END)
             self.book_barcode_entry.delete(0, tk.END)
             self.current_student = None
@@ -1131,6 +1307,67 @@ class LibrarySoftware:
         else:
             messagebox.showerror("Error", f"Failed to process return: {trans_id}")
     
+    def show_notification(self, title, message, notif_type="info"):
+        """Show a custom notification popup"""
+        notif = tk.Toplevel(self.root)
+        notif.title("Notification")
+        notif.geometry("400x250")
+        notif.transient(self.root)
+        notif.grab_set()
+        notif.resizable(False, False)
+    
+        notif.update_idletasks()
+        x = (notif.winfo_screenwidth() // 2) - (400 // 2)
+        y = (notif.winfo_screenheight() // 2) - (250 // 2)
+        notif.geometry(f'+{x}+{y}')
+    
+        if notif_type == "success":
+            color = self.success_color
+            icon = "✓"
+        elif notif_type == "error":
+            color = self.warning_color
+            icon = "✗"
+        else:
+            color = self.accent_color
+            icon = "ℹ"
+    
+        header_frame = tk.Frame(notif, bg=color, height=50)
+        header_frame.pack(fill=tk.X)
+        header_frame.pack_propagate(False)
+    
+        tk.Label(
+            header_frame,
+            text=f"{icon}  {title}",
+            bg=color,
+            fg="white",
+            font=("Helvetica", 14, "bold")
+        ).pack(expand=True)
+    
+        content_frame = tk.Frame(notif, bg="white", padx=20, pady=20)
+        content_frame.pack(fill=tk.BOTH, expand=True)
+    
+        tk.Label(
+            content_frame,
+            text=message,
+            bg="white",
+            font=("Helvetica", 11),
+            justify=tk.LEFT
+        ).pack(expand=True)
+    
+        tk.Button(
+            notif,
+            text="OK",
+            command=notif.destroy,
+            bg=color,
+            fg="white",
+            font=("Helvetica", 11, "bold"),
+            padx=30,
+            pady=5,
+            bd=0
+        ).pack(pady=(0, 15))
+    
+        notif.after(3000, notif.destroy)
+
     def setup_admin_dashboard(self, parent):
         """Setup admin dashboard"""
         stats = self.database.get_statistics()
@@ -1517,7 +1754,8 @@ class LibrarySoftware:
             command=self.send_overdue_notices,
             bg=self.warning_color,
             fg="white",
-            padx=20
+            padx=20,
+            pady=5
         ).pack(pady=5)
         
         self.refresh_overdue_list()
@@ -1771,21 +2009,52 @@ class LibrarySoftware:
                 messagebox.showerror("Error", msg)
     
     def send_overdue_notices(self):
-        """Send overdue notices"""
+        """Send overdue notices to students with overdue books"""
         overdue = self.database.check_overdue_books()
         if not overdue:
             messagebox.showinfo("Info", "No overdue books found")
             return
-        
+    
         students_overdue = {}
         for book in overdue:
             sid = book['lrn']
             if sid not in students_overdue:
                 students_overdue[sid] = []
             students_overdue[sid].append(book)
-        
-        if messagebox.askyesno("Confirm", f"Send notices to {len(students_overdue)} students?"):
-            messagebox.showinfo("Success", f"Notices sent to {len(students_overdue)} students")
+    
+        summary = f"Found {len(overdue)} overdue books from {len(students_overdue)} students:\n\n"
+        for sid, books in students_overdue.items():
+            student_name = books[0]['student_name']
+            summary += f"• {student_name}: {len(books)} book(s)\n"
+    
+        if not messagebox.askyesno("Confirm", f"{summary}\n\nSend overdue notices to these students?"):
+            return
+    
+        success_count = 0
+        fail_count = 0
+    
+        for sid, books in students_overdue.items():
+            student = self.database.find_student_by_id(sid)
+            if student and student.get('email'):
+                if self.notifier.send_overdue_notice(student, books):
+                    success_count += 1
+                else:
+                    fail_count += 1
+            else:
+                print(f"⚠️ No email for student {sid}")
+                fail_count += 1
+    
+        if success_count > 0:
+            messagebox.showinfo(
+                "Success", 
+                f"✅ Sent {success_count} overdue notice(s)\n"
+                f"❌ Failed: {fail_count}\n\n"
+                f"Check console for details."
+            )
+        else:
+            messagebox.showerror("Error", "Failed to send any overdue notices")
+    
+        self.refresh_overdue_list()
     
     def generate_report(self):
         """Generate library report"""
