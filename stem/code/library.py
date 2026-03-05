@@ -42,7 +42,7 @@ class ExcelLibraryDatabase:
             self.workbook = load_workbook(self.filename)
         except FileNotFoundError:
             self.workbook = Workbook()
-            
+
             student_sheet = self.workbook.active
             student_sheet.title = STUDENT_SHEET
             student_sheet.append(["LRN", "STUDENT NAME", "GRADE & SECTION", "EMAIL"])
@@ -377,6 +377,91 @@ class ExcelLibraryDatabase:
             'borrowed_books': len(all_books) - available_books
         }
 
+    def import_students_from_excel(self, filename):
+        """Import students from another Excel file"""
+        try:
+            source_workbook = load_workbook(filename)
+            source_sheet = source_workbook.active
+        
+            imported_count = 0
+            duplicate_count = 0
+            error_count = 0
+        
+            for row in source_sheet.iter_rows(min_row=2, values_only=True):
+                try:
+                    if len(row) < 4:
+                        continue
+                
+                    lrn = str(row[0]).strip() if row[0] else ""
+                    name = str(row[1]).strip() if row[1] else ""
+                    grade = str(row[2]).strip() if row[2] else ""
+                    email = str(row[3]).strip() if row[3] else ""
+                
+                    if not lrn or not name:
+                        continue
+                
+                    if self.find_student_by_id(lrn):
+                        duplicate_count += 1
+                        continue
+                
+                    self.student_sheet.append([lrn, name, grade, email])
+                    imported_count += 1
+                
+                except Exception as e:
+                    error_count += 1
+                    print(f"Error importing row: {e}")
+        
+            if imported_count > 0:
+                self.save_workbook()
+        
+            result = f"Imported: {imported_count}, Duplicates: {duplicate_count}, Errors: {error_count}"
+            return True, result
+        
+        except Exception as e:
+            return False, str(e)
+
+    def import_books_from_excel(self, filename):
+        """Import books from another Excel file"""
+        try:
+            source_workbook = load_workbook(filename)
+            source_sheet = source_workbook.active
+        
+            imported_count = 0
+            duplicate_count = 0
+            error_count = 0
+        
+            for row in source_sheet.iter_rows(min_row=2, values_only=True):
+                try:
+                    if len(row) < 3:
+                        continue
+                
+                    barcode = str(row[0]).strip() if row[0] else ""
+                    title = str(row[1]).strip() if row[1] else ""
+                    author = str(row[2]).strip() if row[2] else "unknown"
+                
+                    if not barcode or not title:
+                        continue
+                
+                    if self.find_book_by_barcode(barcode):
+                        duplicate_count += 1
+                        continue
+                
+                    self.book_sheet.append([barcode, title, author, "Available", "", ""])
+                    imported_count += 1
+                
+                except Exception as e:
+                    error_count += 1
+                    print(f"Error importing row: {e}")
+        
+            if imported_count > 0:
+                self.save_workbook()
+        
+            result = f"Imported: {imported_count}, Duplicates: {duplicate_count}, Errors: {error_count}"
+            return True, result
+        
+        except Exception as e:
+            return False, str(e)
+    
 class EmailNotifier:
     def __init__(self):
         self.host = EMAIL_HOST
@@ -1492,6 +1577,15 @@ class LibrarySoftware:
         
         tk.Button(
             toolbar,
+            text="Import from Excel",
+            command=self.import_students_dialog,
+            bg=self.accent_color,
+            fg="white",
+            padx=10
+        ).pack(side=tk.LEFT, padx=5)
+
+        tk.Button(
+            toolbar,
             text="Refresh",
             command=self.refresh_student_list,
             bg=self.accent_color,
@@ -1579,6 +1673,15 @@ class LibrarySoftware:
             padx=10
         ).pack(side=tk.LEFT, padx=5)
         
+        tk.Button(
+            toolbar,
+            text="Import from Excel",
+            command=self.import_books_dialog,
+            bg=self.accent_color,
+            fg="white",
+            padx=10
+        ).pack(side=tk.LEFT, padx=5)
+
         tk.Button(
             toolbar,
             text="Refresh",
@@ -2008,6 +2111,46 @@ class LibrarySoftware:
             else:
                 messagebox.showerror("Error", msg)
     
+    def import_students_dialog(self):
+        """Dialog to import students from Excel file"""
+        from tkinter import filedialog
+    
+        filename = filedialog.askopenfilename(
+            title="Select Excel file to import students",
+            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+        )
+    
+        if not filename:
+            return
+    
+        success, result = self.database.import_students_from_excel(filename)
+    
+        if success:
+            messagebox.showinfo("Import Successful", f"Students imported successfully!\n\n{result}")
+            self.refresh_student_list()
+        else:
+            messagebox.showerror("Import Failed", f"Failed to import students:\n{result}")
+
+    def import_books_dialog(self):
+        """Dialog to import books from Excel file"""
+        from tkinter import filedialog
+    
+        filename = filedialog.askopenfilename(
+            title="Select Excel file to import books",
+            filetypes=[("Excel files", "*.xlsx *.xls"), ("All files", "*.*")]
+        )
+    
+        if not filename:
+            return
+    
+        success, result = self.database.import_books_from_excel(filename)
+    
+        if success:
+            messagebox.showinfo("Import Successful", f"Books imported successfully!\n\n{result}")
+            self.refresh_book_list()
+        else:
+            messagebox.showerror("Import Failed", f"Failed to import books:\n{result}")
+
     def send_overdue_notices(self):
         """Send overdue notices to students with overdue books"""
         overdue = self.database.check_overdue_books()
