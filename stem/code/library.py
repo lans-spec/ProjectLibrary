@@ -46,49 +46,20 @@ class ExcelLibraryDatabase:
             student_sheet = self.workbook.active
             student_sheet.title = STUDENT_SHEET
             student_sheet.append(["LRN", "STUDENT NAME", "GRADE & SECTION", "EMAIL"])
-            
-            students_data = [
-                ["136515130851", "JESSABEL S. UMAYAN", "12-STEM", "jessabelsorianoumayan@gmail.com"],
-                ["136526130084", "FRITCHIE P. REYES", "12-STEM", "fritchiereyes@gmail.com"],
-                ["111844140223", "ANGELA A. MERCED", "12-STEM", "angela.merced@gmail.com"],
-                ["136515140138", "LANZE ANDERSON C. LOZANO", "12-STEM", "lanze.anderson@gmail.com"],
-                ["136515140191", "ALLEN FELICITY S. PEREZ", "12-STEM", "allenfelicity17@gmail.com"],
-                ["136526130095", "REYNAZ B. GONZALES", "12-STEM", "reynazgonzales4@gmail.com"],
-                ["136526130443", "PRINCESS ALLEN P. MADRIAGA", "12-STEM", "princessallenmadriaga@gmail.com"],
-                ["136685140071", "YASMIEN SOPHIE D. ASTOR", "12-STEM", "yasmienastor12@gmail.com"],
-                ["136529140999", "TIFFANY S. YACAP", "12-HUMBS B", "05.tiffany.05@gmail.com"],
-                ["136515130205", "ASHERAH YAN-YAN CORPUZ", "12-HUMBS B", "asherahyanancorpuz22@gmail.com"],
-            ]
-            for student in students_data:
-                student_sheet.append(student)
-            
+        
             book_sheet = self.workbook.create_sheet(BOOK_SHEET)
             book_sheet.append(["BOOK BARCODE", "BOOK TITLE", "AUTHOR", "STATUS", "DATE BORROWED", "DUE DATE"])
-            
-            books_data = [
-                ["9780026757577", "Manufacturing Technology (Today and Tomorrow)", "unknown"],
-                ["9789715147798", "True Filipino (In though, in Word and in Deed)", "unknown"],
-                ["9789716996166", "Interactive Mathematics", "unknown"],
-                ["9786214130178", "Skill book in Mathematics (Based on the K to 12 BEC)", "unknown"],
-                ["9780153164132", "HBJ LANGUAGE", "unknown"],
-                ["9789716893786", "Kasaysayan at Pamahalaang ng Pilipinas", "unknown"],
-                ["9789716554601", "Math Builders", "unknown"],
-                ["9789710581641", "K to 12 Conceptual Math & Beyond 7", "unknown"],
-                ["9786214120178", "Skill book in Mathematics", "unknown"],
-                ["9789719990802", "Edukasyon Sa Pagpapakatao", "unknown"],
-            ]
-            for book in books_data:
-                book_sheet.append(book + ["Available", "", ""])
-            
+        
             trans_sheet = self.workbook.create_sheet(TRANSACTION_SHEET)
             trans_sheet.append([
                 "Transaction ID", "LRN", "Student Name", "Grade & Section", "Email",
                 "Book Barcode", "Book Title", "Author", "Action", 
                 "Timestamp", "Date Time", "Due Date"
             ])
-            
-            self.workbook.save(self.filename)
         
+            self.workbook.save(self.filename)
+            print(f"Created new empty Excel file: {self.filename}")
+    
         self.student_sheet = self.workbook[STUDENT_SHEET]
         self.book_sheet = self.workbook[BOOK_SHEET]
         self.trans_sheet = self.workbook[TRANSACTION_SHEET]
@@ -1752,9 +1723,15 @@ class LibrarySoftware:
     
     def setup_admin_transactions(self, parent):
         """Setup transactions view - TRANSACTION LOG sheet"""
+        main_container = tk.Frame(parent, bg=self.bg_color)
+        main_container.pack(fill=tk.BOTH, expand=True)
+    
+        tree_frame = tk.Frame(main_container, bg=self.bg_color)
+        tree_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=(10, 5))
+    
         columns = ('Trans ID', 'Date', 'LRN', 'Student Name', 'Grade', 'Book', 'Author', 'Action', 'Due Date')
-        self.transaction_tree = ttk.Treeview(parent, columns=columns, show='headings', height=20)
-        
+        self.transaction_tree = ttk.Treeview(tree_frame, columns=columns, show='headings', height=18)
+    
         self.transaction_tree.heading('Trans ID', text='Transaction ID')
         self.transaction_tree.heading('Date', text='Date')
         self.transaction_tree.heading('LRN', text='LRN')
@@ -1764,44 +1741,75 @@ class LibrarySoftware:
         self.transaction_tree.heading('Author', text='Author')
         self.transaction_tree.heading('Action', text='Action')
         self.transaction_tree.heading('Due Date', text='Due Date')
-        
-        self.transaction_tree.column('Trans ID', width=100)
-        self.transaction_tree.column('Date', width=150)
-        self.transaction_tree.column('LRN', width=120)
-        self.transaction_tree.column('Student Name', width=200)
-        self.transaction_tree.column('Grade', width=100)
-        self.transaction_tree.column('Book', width=250)
-        self.transaction_tree.column('Author', width=150)
-        self.transaction_tree.column('Action', width=80)
-        self.transaction_tree.column('Due Date', width=100)
-        
-        scrollbar = ttk.Scrollbar(parent, orient=tk.VERTICAL, command=self.transaction_tree.yview)
+    
+        self.transaction_tree.column('Trans ID', width=100, minwidth=80)
+        self.transaction_tree.column('Date', width=130, minwidth=100)
+        self.transaction_tree.column('LRN', width=120, minwidth=100)
+        self.transaction_tree.column('Student Name', width=200, minwidth=150)
+        self.transaction_tree.column('Grade', width=100, minwidth=80)
+        self.transaction_tree.column('Book', width=250, minwidth=200)
+        self.transaction_tree.column('Author', width=150, minwidth=120)
+        self.transaction_tree.column('Action', width=80, minwidth=70)
+        self.transaction_tree.column('Due Date', width=100, minwidth=80)
+    
+        scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.transaction_tree.yview)
         self.transaction_tree.configure(yscrollcommand=scrollbar.set)
-        
-        self.transaction_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(10, 0))
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10))
-        
-        tk.Button(
-            parent,
-            text="Refresh",
+    
+        self.transaction_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+    
+        button_frame = tk.Frame(main_container, bg=self.bg_color)
+        button_frame.pack(fill=tk.X, padx=10, pady=10)
+    
+        refresh_btn = tk.Button(
+            button_frame,
+            text="Refresh Transactions",
             command=self.refresh_transaction_list,
             bg=self.accent_color,
             fg="white",
-            padx=20
-        ).pack(pady=10)
-        
+            font=("Helvetica", 10, "bold"),
+            padx=20,
+            pady=5,
+            bd=0,
+            cursor="hand2"
+        )
+        refresh_btn.pack(side=tk.LEFT, padx=5)
+    
+        export_btn = tk.Button(
+            button_frame,
+            text="Export to CSV",
+            command=self.export_transactions,
+            bg=self.success_color,
+            fg="white",
+            font=("Helvetica", 10, "bold"),
+            padx=20,
+            pady=5,
+            bd=0,
+            cursor="hand2"
+        )
+        export_btn.pack(side=tk.LEFT, padx=5)
+    
+        self.transaction_status = tk.Label(
+            button_frame,
+            text="",
+            bg=self.bg_color,
+            fg="gray",
+            font=("Helvetica", 9, "italic")
+        )
+        self.transaction_status.pack(side=tk.RIGHT, padx=10)
+    
         self.refresh_transaction_list()
     
     def refresh_transaction_list(self):
         """Refresh the transaction list"""
         if not self.transaction_tree:
             return
-        
+    
         for item in self.transaction_tree.get_children():
             self.transaction_tree.delete(item)
-        
+    
         transactions = self.database.get_all_transactions(limit=500)
-        
+    
         for trans in transactions:
             self.transaction_tree.insert('', tk.END, values=(
                 trans['trans_id'],
@@ -1815,6 +1823,51 @@ class LibrarySoftware:
                 trans['due_date']
             ))
     
+        if hasattr(self, 'transaction_status'):
+            current_time = datetime.now().strftime("%H:%M:%S")
+            self.transaction_status.config(text=f"Last refreshed: {current_time} | Total: {len(transactions)} transactions")
+    
+    def export_transactions(self):
+        """Export transactions to CSV file"""
+        from tkinter import filedialog
+        import csv
+    
+        filename = filedialog.asksaveasfilename(
+            title="Save Transactions As",
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+        )
+    
+        if not filename:
+            return
+    
+        try:
+            transactions = self.database.get_all_transactions(limit=10000)
+        
+            with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                fieldnames = ['Transaction ID', 'Date', 'LRN', 'Student Name', 'Grade & Section', 
+                            'Book Title', 'Author', 'Action', 'Due Date']
+                writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            
+                writer.writeheader()
+                for trans in transactions:
+                    writer.writerow({
+                        'Transaction ID': trans['trans_id'],
+                        'Date': trans['date_time'][:16] if trans['date_time'] else "",
+                        'LRN': trans['lrn'],
+                        'Student Name': trans['student_name'],
+                        'Grade & Section': trans.get('grade_section', ''),
+                        'Book Title': trans['book_title'],
+                        'Author': trans['author'],
+                        'Action': trans['action'].upper(),
+                        'Due Date': trans['due_date']
+                    })
+        
+            messagebox.showinfo("Success", f"Exported {len(transactions)} transactions to:\n{filename}")
+        
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to export: {str(e)}")
+
     def setup_admin_overdue(self, parent):
         """Setup overdue books view"""
         columns = ('Student', 'LRN', 'Grade', 'Book', 'Borrowed', 'Due Date', 'Days Overdue')
