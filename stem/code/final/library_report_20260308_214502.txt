@@ -1,0 +1,24 @@
+
+LIBRARY SYSTEM REPORT
+Generated: 2026-03-08 21:45:02
+
+SUMMARY STATISTICS
+-----------------
+Total Transactions: 12
+Total Borrows: 7
+Total Returns: 5
+Active Borrowings: 2
+Overdue Books: 1
+Unique Students: 2
+Unique Books: 3
+
+BOOKS STATUS
+-----------
+Total Books in System: 10
+Available Books: 9
+Borrowed Books: 1
+
+STUDENTS STATUS
+--------------
+Total Students: 2
+Students with Active Borrowings: 2
