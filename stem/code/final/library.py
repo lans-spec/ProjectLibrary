@@ -865,6 +865,7 @@ class LibrarySoftware:
         """Setup the main UI structure"""
         self.header_frame = tk.Frame(self.root, bg=self.header_color, height=90)
         self.header_frame.pack(fill=tk.X, side=tk.TOP)
+        self.header_frame.pack_forget()
         self.header_frame.pack_propagate(False)
         
         left_header = tk.Frame(self.header_frame, bg=self.header_color)
@@ -974,7 +975,7 @@ class LibrarySoftware:
             widget.destroy()
     
     def show_login(self):
-        """Show admin login screen with gradient background"""
+        self.header_frame.pack_forget()
         self.clear_content()
         self.user_label.config(text="Not logged in")
         self.logout_btn.pack_forget()
@@ -983,7 +984,7 @@ class LibrarySoftware:
         canvas = tk.Canvas(self.content_frame, bg=self.bg_color, highlightthickness=0)
         canvas.pack(fill=tk.BOTH, expand=True)
     
-    # Create gradient effect
+    # Create smooth gradient effect with more color steps
         width = self.content_frame.winfo_width()
         height = self.content_frame.winfo_height()
     
@@ -993,80 +994,182 @@ class LibrarySoftware:
         if height <= 1:
             height = 700
     
-    # Create gradient with multiple steps for smooth transition
-        colors = ["#1a2f5e", "#1e3568", "#223c72", "#26437c", "#2a4a8a", "#26437c", "#223c72", "#1e3568", "#1a2f5e"]
-        steps = len(colors)
-        step_height = height / steps
+    # Create smooth gradient with 50 steps for seamless transition
+        steps = 50
+        start_color = (26, 47, 94)    # #1a2f5e
+        mid_color = (42, 74, 138)     # #2a4a8a
+        end_color = (30, 58, 110)     # #1e3a6e
     
-        for i, color in enumerate(colors):
-            y1 = i * step_height
-            y2 = (i + 1) * step_height
+        for i in range(steps):
+        # Calculate position ratio (0 to 1)
+            ratio = i / steps
+        
+        # Interpolate colors for smooth transition
+            if ratio < 0.4:
+            # First segment: start to mid
+                t = ratio / 0.4
+                r = int(start_color[0] + (mid_color[0] - start_color[0]) * t)
+                g = int(start_color[1] + (mid_color[1] - start_color[1]) * t)
+                b = int(start_color[2] + (mid_color[2] - start_color[2]) * t)
+            else:
+            # Second segment: mid to end
+                t = (ratio - 0.4) / 0.6
+                r = int(mid_color[0] + (end_color[0] - mid_color[0]) * t)
+                g = int(mid_color[1] + (end_color[1] - mid_color[1]) * t)
+                b = int(mid_color[2] + (end_color[2] - mid_color[2]) * t)
+        
+            color = f'#{r:02x}{g:02x}{b:02x}'
+        
+            y1 = i * (height / steps)
+            y2 = (i + 1) * (height / steps)
+        
+        # Create rectangle with no outline
             canvas.create_rectangle(0, y1, width, y2, fill=color, outline="", width=0)
     
-    # Bind resize event to redraw gradient
+    # Bind resize event to redraw gradient smoothly
         def on_resize(event):
             canvas.delete("all")
             new_width = event.width
             new_height = event.height
-            step_h = new_height / steps
-            for i, color in enumerate(colors):
-                y1 = i * step_h
-                y2 = (i + 1) * step_h
+        
+            for i in range(steps):
+                ratio = i / steps
+            
+                if ratio < 0.4:
+                    t = ratio / 0.4
+                    r = int(start_color[0] + (mid_color[0] - start_color[0]) * t)
+                    g = int(start_color[1] + (mid_color[1] - start_color[1]) * t)
+                    b = int(start_color[2] + (mid_color[2] - start_color[2]) * t)
+                else:
+                    t = (ratio - 0.4) / 0.6
+                    r = int(mid_color[0] + (end_color[0] - mid_color[0]) * t)
+                    g = int(mid_color[1] + (end_color[1] - mid_color[1]) * t)
+                    b = int(mid_color[2] + (end_color[2] - mid_color[2]) * t)
+            
+                color = f'#{r:02x}{g:02x}{b:02x}'
+            
+                y1 = i * (new_height / steps)
+                y2 = (i + 1) * (new_height / steps)
+            
                 canvas.create_rectangle(0, y1, new_width, y2, fill=color, outline="", width=0)
     
         canvas.bind("<Configure>", on_resize)
     
     # Center frame for the card
-        center_frame = tk.Frame(canvas, bg='')  # Transparent background
+        center_frame = tk.Frame(canvas, bg='white')  # Transparent background
         center_frame.place(relx=0.5, rely=0.5, anchor="center")
-    
+
     # Login card with white background
-        login_card = tk.Frame(
+        # Create rounded rectangle card using Canvas
+        card_width = 400
+        card_height = 550
+        corner_radius = 30
+
+        card_canvas = tk.Canvas(
             center_frame,
-            bg='white',
-            relief=tk.FLAT,
+            width=card_width,
+            height=card_height,
+            highlightthickness=0,
             bd=0,
-            highlightthickness=0
+            bg='white'
         )
-        login_card.pack()
+        card_canvas.pack()
+
+# Function to create rounded rectangle
+        def create_rounded_rect(canvas, x1, y1, x2, y2, radius, **kwargs):
+            points = []
+            for x in (x1, x1+radius, x2-radius, x2):
+                for y in (y1, y1+radius, y2-radius, y2):
+                    points.append((x, y))
     
-    # School name header
-        school_header = tk.Frame(login_card, bg='white')
-        school_header.pack(pady=(20, 5))
+            canvas.create_polygon(
+                points[0][0], points[0][1]+radius,
+                points[1][0]-radius, points[1][1],
+                points[2][0]+radius, points[2][1],
+                points[3][0], points[3][1]-radius,
+                points[3][0], points[2][1]+radius,
+                points[2][0]+radius, points[2][1],
+                points[1][0]-radius, points[1][1],
+                points[0][0], points[0][1]+radius,
+                smooth=True,
+                **kwargs
+            )
+
+# Create white rounded rectangle
+        create_rounded_rect(
+            card_canvas,
+            0, 0, card_width, card_height,
+            corner_radius,
+            fill='white',
+            outline=''
+        )
+
+# Create inner frame for content
+        content_frame = tk.Frame(card_canvas, bg='white')
+        content_frame.place(x=0, y=0, width=card_width, height=card_height)
+
+        logo_frame = tk.Frame(content_frame, bg='white')
+        logo_frame.pack(pady=(30, 5))
+
+        try:
+    # Load and resize logo for login screen
+            login_logo_img = Image.open("mahslogo.png")
+            login_logo_img = login_logo_img.resize((70, 70), Image.Resampling.LANCZOS)
+            self.login_logo = ImageTk.PhotoImage(login_logo_img)
     
+            logo_label = tk.Label(
+                logo_frame,
+                image=self.login_logo,
+                bg='white'
+            )
+            logo_label.pack()
+        except Exception as e:
+            print(f"Logo not loaded for login: {e}")
+    # Fallback to text logo
+            tk.Label(
+                logo_frame,
+                text="📚",
+                font=("Helvetica", 48),
+                bg='white',
+                fg=self.header_color
+            ).pack()
+
+# School name (inside card)
+        school_frame = tk.Frame(content_frame, bg='white')
+        school_frame.pack(pady=(30, 5))
+
         tk.Label(
-            school_header,
+            school_frame,
             text="MELCHORA AQUINO HIGH SCHOOL",
-            font=("Helvetica", 18, "bold"),
+            font=("Helvetica", 14),
+            bg='white',
+            fg='#666666'
+        ).pack()
+
+# LibraNova (app name)
+        app_name_frame = tk.Frame(content_frame, bg='white')
+        app_name_frame.pack(pady=(0, 20))
+
+        tk.Label(
+            app_name_frame,
+            text="LibraNova",
+            font=("Helvetica", 32, "bold"),
             bg='white',
             fg='#1e3a5f'
         ).pack()
     
     # Form container
-        form_frame = tk.Frame(login_card, bg='white', padx=40, pady=20)
+        form_frame = tk.Frame(content_frame, bg='white', padx=40, pady=10)
         form_frame.pack()
     
-    # Sign In label
+    # Sign In heading
         tk.Label(
             form_frame,
-            text="Sign In",
+            text="Login",
             font=("Helvetica", 16, "bold"),
             bg='white',
             fg='#333333'
-        ).pack(anchor=tk.W, pady=(0, 20))
-    
-    # Create Account link
-        create_account_frame = tk.Frame(form_frame, bg='white')
-        create_account_frame.pack(anchor=tk.W, pady=(0, 15))
-    
-        tk.Label(
-            create_account_frame,
-            text="Create Account",
-            font=("Helvetica", 10),
-            bg='white',
-            fg=self.accent_color,
-            cursor="hand2"
-        ).pack()
+        ).pack(anchor=tk.W, pady=(0, 25))
     
     # USERNAME field
         tk.Label(
@@ -1081,10 +1184,11 @@ class LibrarySoftware:
             form_frame,
             font=("Helvetica", 11),
             width=28,
-            bd=0,
-            relief=tk.FLAT,
-            highlightthickness=0,
-            bg='#f5f5f5'
+            bd=1,
+            relief=tk.SOLID,
+            highlightcolor=self.accent_color,
+            highlightthickness=1,
+            bg='white'
         )
         username.pack(pady=(0, 15), ipady=8, fill=tk.X)
         username.focus()
@@ -1103,10 +1207,11 @@ class LibrarySoftware:
             font=("Helvetica", 11),
             width=28,
             show="*",
-            bd=0,
-            relief=tk.FLAT,
-            highlightthickness=0,
-            bg='#f5f5f5'
+            bd=1,
+            relief=tk.SOLID,
+            highlightcolor=self.accent_color,
+            highlightthickness=1,
+            bg='white'
         )
         password.pack(pady=(0, 25), ipady=8, fill=tk.X)
     
@@ -1127,9 +1232,9 @@ class LibrarySoftware:
     # SIGN IN button with arrow
         signin_btn = tk.Button(
             form_frame,
-            text="SIGN IN →",
+            text="LOGIN →",
             command=login,
-            bg=self.accent_color,
+            bg='#EEBE3E',  # Gold color
             fg="white",
             font=("Helvetica", 11, "bold"),
             padx=20,
@@ -1138,48 +1243,22 @@ class LibrarySoftware:
             cursor="hand2",
             width=25
         )
-        signin_btn.pack(pady=(0, 15))
-    
-    # OR separator
-        or_frame = tk.Frame(form_frame, bg='white')
-        or_frame.pack(fill=tk.X, pady=5)
-    
-        or_frame.columnconfigure(0, weight=1)
-        or_frame.columnconfigure(1, weight=0)
-        or_frame.columnconfigure(2, weight=1)
-    
-        tk.Frame(or_frame, bg='#e0e0e0', height=1).grid(row=0, column=0, sticky="ew", padx=(0, 10))
-        tk.Label(or_frame, text="OR", bg='white', fg='#999999', font=("Helvetica", 9)).grid(row=0, column=1)
-        tk.Frame(or_frame, bg='#e0e0e0', height=1).grid(row=0, column=2, sticky="ew", padx=(10, 0))
-    
-    # Sign Up link
-        signup_frame = tk.Frame(form_frame, bg='white')
-        signup_frame.pack(pady=(5, 20))
-    
-        tk.Label(
-            signup_frame,
-            text="Don't have an account? ",
-            bg='white',
-            fg='#666666',
-            font=("Helvetica", 9)
-        ).pack(side=tk.LEFT)
-    
-        signup_link = tk.Label(
-            signup_frame,
-            text="Sign Up",
-            bg='white',
-            fg=self.accent_color,
-            font=("Helvetica", 9, "bold"),
-            cursor="hand2"
-        )
-        signup_link.pack(side=tk.LEFT)
-    
-    # Optional: Add click handler for signup (if you want to implement later)
-    # signup_link.bind('<Button-1>', lambda e: self.show_signup())
+        signin_btn.pack(pady=(0, 30))
+
+# Add hover effect to darken slightly
+        def on_enter(e):
+            signin_btn['bg'] = '#C08E12'  # Darker gold on hover
+
+        def on_leave(e):
+            signin_btn['bg'] = '#EEBE3E'  # Back to original gold
+
+        signin_btn.bind("<Enter>", on_enter)
+        signin_btn.bind("<Leave>", on_leave)
     
     def logout(self):
         """Logout current user"""
         self.current_user = None
+        self.header_frame.pack_forget()  # Hide header on logout
         self.show_login()
     
     def refresh_all_tabs(self):
@@ -1192,7 +1271,8 @@ class LibrarySoftware:
             self.refresh_transaction_list()
     
     def show_admin_dashboard(self):
-        """Show admin dashboard with barcode scanning"""
+        self.header_frame.pack(fill=tk.X, side=tk.TOP, before=self.content_frame)
+        self.logout_btn.pack(side=tk.RIGHT, padx=5)
         self.clear_content()
         
         style = ttk.Style()
