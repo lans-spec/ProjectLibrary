@@ -12,15 +12,20 @@ import sys
 import io
 from PIL import Image, ImageTk
 if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    try:
+        if sys.stdout is not None and hasattr(sys.stdout, 'buffer'):
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+        if sys.stderr is not None and hasattr(sys.stderr, 'buffer'):
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+    except (AttributeError, IOError):
+        pass
 
 EMAIL_HOST = "smtp.gmail.com"
 EMAIL_PORT = 587
-EMAIL_ADDRESS = "lanze.anderson@gmail.com"
-EMAIL_PASSWORD = "hirl quyv gdzs dewd"
+EMAIL_ADDRESS = "libranova.mahs@gmail.com"
+EMAIL_PASSWORD = "dfjg xqkn zbtg akna"
 LIBRARY_NAME = "MELCHORA AQUINO HIGH SCHOOL LIBRARY"
-LIBRARIAN_EMAIL = "lanze.anderson@gmail.com"
+LIBRARIAN_EMAIL = "libranova.mahs@gmail.com"
 BORROWING_DAYS = 3
 
 ADMIN_USERNAME = "admin"
@@ -434,6 +439,38 @@ class ExcelLibraryDatabase:
         except Exception as e:
             return False, str(e)
     
+    def remove_duplicate_transactions(self):
+        """Remove duplicate transaction entries"""
+        rows = list(self.trans_sheet.iter_rows(min_row=2, values_only=True))
+        
+        seen = {}
+        rows_to_delete = []
+        
+        for idx, row in enumerate(rows, start=2):
+            if len(row) >= 9:
+                key = (
+                    row[1],
+                    row[5], 
+                    row[8],
+                    row[10]
+                )
+                
+                if key in seen:
+                    rows_to_delete.append(idx)
+                    print(f"Duplicate found at row {idx}: {row}")
+                else:
+                    seen[key] = idx
+        
+        for row_idx in sorted(rows_to_delete, reverse=True):
+            self.trans_sheet.delete_rows(row_idx)
+            print(f"Deleted duplicate row {row_idx}")
+        
+        if rows_to_delete:
+            self.save_workbook()
+            print(f"Removed {len(rows_to_delete)} duplicate transactions")
+        
+        return len(rows_to_delete)
+
 class EmailNotifier:
     def __init__(self):
         self.host = EMAIL_HOST
@@ -884,7 +921,6 @@ class LibrarySoftware:
             logo_label.pack(side=tk.LEFT, padx=(0, 15))
         except Exception as e:
             print(f"Logo not loaded: {e}")
-        # Fallback to icon
             logo_label = tk.Label(
                 left_header,
                 text="📚",
@@ -920,7 +956,6 @@ class LibrarySoftware:
         self.user_frame = tk.Frame(self.header_frame, bg=self.header_color)
         self.user_frame.pack(side=tk.RIGHT, padx=30)
     
-    # User avatar/circle
         user_avatar = tk.Frame(
             self.user_frame,
             bg=self.accent_color,
@@ -940,7 +975,6 @@ class LibrarySoftware:
         )
         avatar_label.pack(expand=True)
     
-    # User info
         user_info_frame = tk.Frame(self.user_frame, bg=self.header_color)
         user_info_frame.pack(side=tk.LEFT)
     
@@ -980,39 +1014,31 @@ class LibrarySoftware:
         self.user_label.config(text="Not logged in")
         self.logout_btn.pack_forget()
     
-    # Create canvas for gradient background
         canvas = tk.Canvas(self.content_frame, bg=self.bg_color, highlightthickness=0)
         canvas.pack(fill=tk.BOTH, expand=True)
     
-    # Create smooth gradient effect with more color steps
         width = self.content_frame.winfo_width()
         height = self.content_frame.winfo_height()
     
-    # If dimensions are not available yet, use a reasonable default
         if width <= 1:
             width = 1200
         if height <= 1:
             height = 700
     
-    # Create smooth gradient with 50 steps for seamless transition
         steps = 50
-        start_color = (26, 47, 94)    # #1a2f5e
-        mid_color = (42, 74, 138)     # #2a4a8a
-        end_color = (30, 58, 110)     # #1e3a6e
+        start_color = (26, 47, 94)
+        mid_color = (42, 74, 138)
+        end_color = (30, 58, 110)
     
         for i in range(steps):
-        # Calculate position ratio (0 to 1)
             ratio = i / steps
         
-        # Interpolate colors for smooth transition
             if ratio < 0.4:
-            # First segment: start to mid
                 t = ratio / 0.4
                 r = int(start_color[0] + (mid_color[0] - start_color[0]) * t)
                 g = int(start_color[1] + (mid_color[1] - start_color[1]) * t)
                 b = int(start_color[2] + (mid_color[2] - start_color[2]) * t)
             else:
-            # Second segment: mid to end
                 t = (ratio - 0.4) / 0.6
                 r = int(mid_color[0] + (end_color[0] - mid_color[0]) * t)
                 g = int(mid_color[1] + (end_color[1] - mid_color[1]) * t)
@@ -1023,10 +1049,8 @@ class LibrarySoftware:
             y1 = i * (height / steps)
             y2 = (i + 1) * (height / steps)
         
-        # Create rectangle with no outline
             canvas.create_rectangle(0, y1, width, y2, fill=color, outline="", width=0)
     
-    # Bind resize event to redraw gradient smoothly
         def on_resize(event):
             canvas.delete("all")
             new_width = event.width
@@ -1055,64 +1079,21 @@ class LibrarySoftware:
     
         canvas.bind("<Configure>", on_resize)
     
-    # Center frame for the card
-        center_frame = tk.Frame(canvas, bg='white')  # Transparent background
+        center_frame = tk.Frame(canvas, bg='')
         center_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-    # Login card with white background
-        # Create rounded rectangle card using Canvas
-        card_width = 400
-        card_height = 550
-        corner_radius = 30
-
-        card_canvas = tk.Canvas(
+        login_card = tk.Frame(
             center_frame,
-            width=card_width,
-            height=card_height,
-            highlightthickness=0,
-            bd=0,
-            bg='white'
+            bg='white',
+            relief=tk.FLAT,
+            bd=0
         )
-        card_canvas.pack()
+        login_card.pack()
 
-# Function to create rounded rectangle
-        def create_rounded_rect(canvas, x1, y1, x2, y2, radius, **kwargs):
-            points = []
-            for x in (x1, x1+radius, x2-radius, x2):
-                for y in (y1, y1+radius, y2-radius, y2):
-                    points.append((x, y))
-    
-            canvas.create_polygon(
-                points[0][0], points[0][1]+radius,
-                points[1][0]-radius, points[1][1],
-                points[2][0]+radius, points[2][1],
-                points[3][0], points[3][1]-radius,
-                points[3][0], points[2][1]+radius,
-                points[2][0]+radius, points[2][1],
-                points[1][0]-radius, points[1][1],
-                points[0][0], points[0][1]+radius,
-                smooth=True,
-                **kwargs
-            )
-
-# Create white rounded rectangle
-        create_rounded_rect(
-            card_canvas,
-            0, 0, card_width, card_height,
-            corner_radius,
-            fill='white',
-            outline=''
-        )
-
-# Create inner frame for content
-        content_frame = tk.Frame(card_canvas, bg='white')
-        content_frame.place(x=0, y=0, width=card_width, height=card_height)
-
-        logo_frame = tk.Frame(content_frame, bg='white')
+        logo_frame = tk.Frame(login_card, bg='white')
         logo_frame.pack(pady=(30, 5))
 
         try:
-    # Load and resize logo for login screen
             login_logo_img = Image.open("mahslogo.png")
             login_logo_img = login_logo_img.resize((70, 70), Image.Resampling.LANCZOS)
             self.login_logo = ImageTk.PhotoImage(login_logo_img)
@@ -1125,7 +1106,6 @@ class LibrarySoftware:
             logo_label.pack()
         except Exception as e:
             print(f"Logo not loaded for login: {e}")
-    # Fallback to text logo
             tk.Label(
                 logo_frame,
                 text="📚",
@@ -1134,8 +1114,7 @@ class LibrarySoftware:
                 fg=self.header_color
             ).pack()
 
-# School name (inside card)
-        school_frame = tk.Frame(content_frame, bg='white')
+        school_frame = tk.Frame(login_card, bg='white')
         school_frame.pack(pady=(30, 5))
 
         tk.Label(
@@ -1146,8 +1125,7 @@ class LibrarySoftware:
             fg='#666666'
         ).pack()
 
-# LibraNova (app name)
-        app_name_frame = tk.Frame(content_frame, bg='white')
+        app_name_frame = tk.Frame(login_card, bg='white')
         app_name_frame.pack(pady=(0, 20))
 
         tk.Label(
@@ -1158,20 +1136,17 @@ class LibrarySoftware:
             fg='#1e3a5f'
         ).pack()
     
-    # Form container
-        form_frame = tk.Frame(content_frame, bg='white', padx=40, pady=10)
+        form_frame = tk.Frame(login_card, bg='white', padx=40, pady=10)
         form_frame.pack()
     
-    # Sign In heading
         tk.Label(
             form_frame,
-            text="Login",
+            text="Sign In",
             font=("Helvetica", 16, "bold"),
             bg='white',
             fg='#333333'
         ).pack(anchor=tk.W, pady=(0, 25))
     
-    # USERNAME field
         tk.Label(
             form_frame,
             text="USERNAME",
@@ -1193,7 +1168,6 @@ class LibrarySoftware:
         username.pack(pady=(0, 15), ipady=8, fill=tk.X)
         username.focus()
     
-    # PASSWORD field
         tk.Label(
             form_frame,
             text="PASSWORD",
@@ -1215,7 +1189,6 @@ class LibrarySoftware:
         )
         password.pack(pady=(0, 25), ipady=8, fill=tk.X)
     
-    # Login function
         def login():
             if username.get() == ADMIN_USERNAME and password.get() == ADMIN_PASSWORD:
                 self.current_user = {"name": "Administrator", "username": ADMIN_USERNAME}
@@ -1225,16 +1198,14 @@ class LibrarySoftware:
             else:
                 messagebox.showerror("Error", "Invalid credentials")
     
-    # Bind Enter key to login
         username.bind('<Return>', lambda e: login())
         password.bind('<Return>', lambda e: login())
     
-    # SIGN IN button with arrow
         signin_btn = tk.Button(
             form_frame,
-            text="LOGIN →",
+            text="SIGN IN →",
             command=login,
-            bg='#EEBE3E',  # Gold color
+            bg='#EEBE3E',
             fg="white",
             font=("Helvetica", 11, "bold"),
             padx=20,
@@ -1245,20 +1216,17 @@ class LibrarySoftware:
         )
         signin_btn.pack(pady=(0, 30))
 
-# Add hover effect to darken slightly
         def on_enter(e):
-            signin_btn['bg'] = '#C08E12'  # Darker gold on hover
+            signin_btn['bg'] = '#C08E12'
 
         def on_leave(e):
-            signin_btn['bg'] = '#EEBE3E'  # Back to original gold
+            signin_btn['bg'] = '#EEBE3E'
 
-        signin_btn.bind("<Enter>", on_enter)
-        signin_btn.bind("<Leave>", on_leave)
     
     def logout(self):
         """Logout current user"""
         self.current_user = None
-        self.header_frame.pack_forget()  # Hide header on logout
+        self.header_frame.pack_forget()
         self.show_login()
     
     def refresh_all_tabs(self):
@@ -1318,11 +1286,9 @@ class LibrarySoftware:
     
     def setup_scanner_tab(self, parent):
         """Setup barcode scanner tab with improved card design"""
-    # Create a main container that doesn't expand too much
         main_container = tk.Frame(parent, bg=self.bg_color)
         main_container.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
     
-    # Header with icon (smaller)
         header_frame = tk.Frame(main_container, bg=self.bg_color)
         header_frame.pack(fill=tk.X, pady=(0, 15))
     
@@ -1342,15 +1308,12 @@ class LibrarySoftware:
             fg="#666666"
         ).pack(side=tk.LEFT, padx=(15, 0))
     
-    # Create a frame for the two panels (left and right)
         panels_frame = tk.Frame(main_container, bg=self.bg_color)
         panels_frame.pack(fill=tk.BOTH, expand=True, pady=5)
     
-    # ===== LEFT PANEL - STEP 1 =====
         left_frame = tk.Frame(panels_frame, bg='white', relief=tk.GROOVE, bd=1)
         left_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 8))
     
-    # Step header
         step1_header = tk.Frame(left_frame, bg=self.accent_color, height=35)
         step1_header.pack(fill=tk.X)
         step1_header.pack_propagate(False)
@@ -1363,7 +1326,6 @@ class LibrarySoftware:
             fg="white"
         ).pack(padx=10)
     
-    # Content
         left_content = tk.Frame(left_frame, bg='white', padx=15, pady=15)
         left_content.pack(fill=tk.BOTH, expand=True)
     
@@ -1399,7 +1361,6 @@ class LibrarySoftware:
             cursor="hand2"
         ).pack(side=tk.RIGHT)
     
-    # Student info
         self.student_info_frame = tk.Frame(
             left_content,
             bg="#f0f7ff",
@@ -1422,11 +1383,9 @@ class LibrarySoftware:
         )
         self.student_info_label.pack(fill=tk.BOTH, expand=True)
     
-    # ===== RIGHT PANEL - STEP 2 =====
         right_frame = tk.Frame(panels_frame, bg='white', relief=tk.GROOVE, bd=1)
         right_frame.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True, padx=(8, 0))
     
-    # Step header
         step2_header = tk.Frame(right_frame, bg=self.accent_color, height=35)
         step2_header.pack(fill=tk.X)
         step2_header.pack_propagate(False)
@@ -1439,7 +1398,6 @@ class LibrarySoftware:
             fg="white"
         ).pack(padx=10)
     
-    # Content
         right_content = tk.Frame(right_frame, bg='white', padx=15, pady=15)
         right_content.pack(fill=tk.BOTH, expand=True)
     
@@ -1475,7 +1433,6 @@ class LibrarySoftware:
             cursor="hand2"
         ).pack(side=tk.RIGHT)
     
-    # Book info
         self.book_info_frame = tk.Frame(
             right_content,
             bg="#f0f7ff",
@@ -1498,7 +1455,6 @@ class LibrarySoftware:
         )
         self.book_info_label.pack(fill=tk.BOTH, expand=True)
     
-    # ===== BOTTOM PANEL - STEP 3 (Action Buttons) =====
         bottom_frame = tk.Frame(main_container, bg='white', relief=tk.GROOVE, bd=1)
         bottom_frame.pack(fill=tk.X, pady=(15, 5))
     
@@ -1549,7 +1505,6 @@ class LibrarySoftware:
         )
         self.return_btn.pack(side=tk.LEFT, padx=10)
     
-    # Status
         self.scanner_status = tk.Label(
             main_container,
             text="⚡ Ready. Scan student LRN to begin.",
@@ -1642,16 +1597,34 @@ class LibrarySoftware:
         if not self.current_student or not self.current_book:
             messagebox.showerror("Error", "Please select both student and book")
             return
-    
+
         if self.current_book['status'] != "Available":
             messagebox.showerror("Error", "This book is not available for borrowing")
             return
-    
+
+    # Check if student has overdue books
         overdue = self.database.check_overdue_books(self.current_student['lrn'])
         if overdue:
-            if not messagebox.askyesno("Overdue Warning", 
-                f"Student has {len(overdue)} overdue book(s). Continue borrowing?"):
-                return
+        # Create a list of overdue books for the error message
+            overdue_list = "\n".join([f"• {book['book_title']} (Due: {book['due_date']}, {book['days_overdue']} days overdue)" for book in overdue])
+        
+            messagebox.showerror(
+                "Borrowing Blocked", 
+                f"❌ {self.current_student['name']} cannot borrow books.\n\n"
+                f"This student has {len(overdue)} overdue book(s):\n\n{overdue_list}\n\n"
+                f"Please return all overdue books before borrowing again."
+            )
+            return  # Block borrowing entirely - no option to continue
+
+        # Proceed with borrowing if no overdue books
+        due_date = datetime.now() + timedelta(days=BORROWING_DAYS)
+
+        success, trans_id = self.database.log_transaction(
+            self.current_student,
+            self.current_book,
+            'borrow',
+            due_date
+        )
     
         due_date = datetime.now() + timedelta(days=BORROWING_DAYS)
     
@@ -1825,10 +1798,10 @@ class LibrarySoftware:
     def setup_admin_dashboard(self, parent):
         """Setup admin dashboard with Quick Actions at the top"""
     
-        parent.grid_rowconfigure(0, weight=0)  # Header (fixed)    
-        parent.grid_rowconfigure(1, weight=0)  # Quick Actions (fixed)
-        parent.grid_rowconfigure(2, weight=1)  # Cards (expandable)
-        parent.grid_rowconfigure(3, weight=1)  # Bottom spacer
+        parent.grid_rowconfigure(0, weight=0)  
+        parent.grid_rowconfigure(1, weight=0)
+        parent.grid_rowconfigure(2, weight=1)
+        parent.grid_rowconfigure(3, weight=1)
         parent.grid_columnconfigure(0, weight=1)
     
         header_frame = tk.Frame(parent, bg=self.bg_color)
@@ -1889,17 +1862,14 @@ class LibrarySoftware:
             )
             btn.pack(side=tk.LEFT, padx=8)
 
-    # ===== CARDS SECTION =====
         cards_container = tk.Frame(parent, bg=self.bg_color)
         cards_container.grid(row=2, column=0, sticky="nsew", pady=10)
         cards_container.grid_columnconfigure(0, weight=1)
         cards_container.grid_rowconfigure(0, weight=1)
     
-    # Center frame for cards
         center_frame = tk.Frame(cards_container, bg=self.bg_color)
         center_frame.grid(row=0, column=0)
     
-    # Statistics cards in a grid
         cards_frame = tk.Frame(center_frame, bg=self.bg_color)
         cards_frame.pack(pady=10)
     
@@ -1912,7 +1882,6 @@ class LibrarySoftware:
             ("✅ Available Books", stats['available_books'], "#16a085")
         ]
     
-    # Create modern card grid
         for i, (title, value, color) in enumerate(stat_items):
             row = i // 3
             col = i % 3
@@ -1934,7 +1903,6 @@ class LibrarySoftware:
             top_bar = tk.Frame(card, bg=color, height=8)
             top_bar.pack(fill=tk.X)
         
-        # Content
             content = tk.Frame(card, bg='white', padx=15, pady=15)
             content.pack(fill=tk.BOTH, expand=True)
         
@@ -2229,6 +2197,20 @@ class LibrarySoftware:
         )
         export_btn.pack(side=tk.LEFT, padx=5)
     
+        cleanup_btn = tk.Button(
+            button_frame,
+            text="Cleanup Duplicates",
+            command=self.cleanup_transactions_dialog,
+            bg=self.warning_color,
+            fg="white",
+            font=("Helvetica", 10, "bold"),
+            padx=20,
+            pady=5,
+            bd=0,
+            cursor="hand2"
+        )
+        cleanup_btn.pack(side=tk.LEFT, padx=5)
+    
         self.transaction_status = tk.Label(
             button_frame,
             text="",
@@ -2259,7 +2241,7 @@ class LibrarySoftware:
                 trans.get('grade_section', ''),
                 trans['book_title'],
                 trans['author'],
-                trans['action'].upper(),
+                'BORROWED' if trans['action'] == 'borrow' else 'RETURNED',
                 trans['due_date']
             ))
     
@@ -2299,7 +2281,7 @@ class LibrarySoftware:
                         'Grade & Section': trans.get('grade_section', ''),
                         'Book Title': trans['book_title'],
                         'Author': trans['author'],
-                        'Action': trans['action'].upper(),
+                        'Action': 'BORROWED' if trans['action'] == 'borrow' else 'RETURNED',
                         'Due Date': trans['due_date']
                     })
         
@@ -2307,6 +2289,15 @@ class LibrarySoftware:
         
         except Exception as e:
             messagebox.showerror("Error", f"Failed to export: {str(e)}")
+
+    def cleanup_transactions_dialog(self):
+        """Dialog to remove duplicate transactions"""
+        count = self.database.remove_duplicate_transactions()
+        if count > 0:
+            messagebox.showinfo("Cleanup Complete", f"Removed {count} duplicate transaction(s)")
+            self.refresh_transaction_list()
+        else:
+            messagebox.showinfo("Cleanup Complete", "No duplicates found")
 
     def setup_admin_overdue(self, parent):
         """Setup overdue books view"""
